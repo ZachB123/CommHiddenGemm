@@ -1,0 +1,11 @@
+
+gemm1d:184809 terminated with signal 6 at PC=7f2102c969fc SP=7fffd09793b0.  Backtrace:
+/lib/x86_64-linux-gnu/libc.so.6(pthread_kill+0x12c)[0x7f2102c969fc]
+/lib/x86_64-linux-gnu/libc.so.6(raise+0x16)[0x7f2102c42476]
+/lib/x86_64-linux-gnu/libc.so.6(abort+0xd3)[0x7f2102c287f3]
+/lib/x86_64-linux-gnu/libc.so.6(+0x2871b)[0x7f2102c2871b]
+/lib/x86_64-linux-gnu/libc.so.6(+0x39e96)[0x7f2102c39e96]
+./gemm1d(+0x14c6)[0x559f223294c6]
+/lib/x86_64-linux-gnu/libc.so.6(+0x29d90)[0x7f2102c29d90]
+/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x80)[0x7f2102c29e40]
+./gemm1d(+0x1165)[0x559f22329165]

@@ -1,4 +1,4 @@
-#include <mpi.h>
+// #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -118,13 +118,19 @@ int size;
 
 void print_matrix(int m, int n, const int M[m][n]) {
     // this will probably break if 4 digit numbers or greater are introduced
-    // only process 0 prints for not
-    if (rank != 0) {
-        return;
-    }
     for (int i = 0; i < m; i++) {
         for (int j = 0; j < n; j++) {
             printf("%4d, ", M[i][j]);
+        }
+        printf("\n");
+    }
+}
+
+void print_buffer(int m, int n, const int* M) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            // why not sizeof int
+            printf("%4d, ", M[i * n + j]);//*(M + (n * i + j)));
         }
         printf("\n");
     }
@@ -143,14 +149,14 @@ void standard_matrix_multiply(int m, int k, int n, const int A[m][k], const int 
 // columns at [start, end)
 // we only return int* here because we have compressed the matrix into a 1d object
 // user must free this
-int* split_matrix_along_columns(const int start_col, const int end_col, const int rows, const int** M) {
+int* split_matrix_along_columns(const int start_col, const int end_col, const int rows, const int columns, const int M[rows][columns]) {
     // we malloc
     int num_cols = end_col - start_col;
     int* sub_matrix = (int*) malloc(rows * num_cols * sizeof(int));
     
     for (int i = 0; i < rows; i++) {
         for (int j = start_col; j < end_col; j++) {
-            sub_matrix[i *num_cols + j] = M[i][j];
+            sub_matrix[i * num_cols + j - start_col] = M[i][j];
         }
     }
 
@@ -165,17 +171,33 @@ int main(int argc, int* argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     // make sure we run on 4 processors so everything splits nice
-    assert(size == 4);
-
+    // assert(size == 4);
+    size = 4;
+    rank = 1;
     // initial distributions
 
     // note the MINI_X we use is the dimension we have split the matrix across
-    int* A_I = split_matrix_along_columns(rank * (MINI_K / size), (rank + 1) * (MINI_K / size), MINI_M, (const int**)MINI_MATRIX_A);
-    int* B_I = split_matrix_along_columns(rank * (MINI_N / size), (rank + 1) * (MINI_N / size), MINI_K, (const int**)MINI_MATRIX_B);
-    int* C_I = split_matrix_along_columns(rank * (MINI_N / size), (rank + 1) * (MINI_N / size), MINI_M, (const int**)MINI_MATRIX_B);
+    int* A_I = split_matrix_along_columns(rank * (MINI_K / size), (rank + 1) * (MINI_K / size), MINI_M, MINI_K, MINI_MATRIX_A);
+    int* B_I = split_matrix_along_columns(rank * (MINI_N / size), (rank + 1) * (MINI_N / size), MINI_K, MINI_N, MINI_MATRIX_B);
+    int* C_I = split_matrix_along_columns(rank * (MINI_N / size), (rank + 1) * (MINI_N / size), MINI_M, MINI_N, MINI_MATRIX_C);
+
+    if (rank == -1) {
+        print_buffer(MINI_M, 2, A_I);
+        printf("\n");
+        print_buffer(MINI_K, 1, B_I);
+        printf("\n");
+        print_buffer(MINI_M, 1, C_I);
+    }
+
+
+    int prev_rank = (rank + size - 1) % size;
+    int next_rank = (rank + 1) % size;
 
     for (int i = 0; i < size; i++) {
         // TODO use Isend and Irecv to asynchronously to sending and receiving to ensure communication hiding I think
+        // int* A_Temp = (int*) malloc(MINI_M * ((rank + 1) * (MINI_K / size) - ())); 
+        // MPI_ISend();
+        // MPI_IRecv()
     }
 
     free(A_I);
@@ -188,4 +210,5 @@ int main(int argc, int* argv) {
 
     MPI_Finalize();
 
+    return 0;
 }

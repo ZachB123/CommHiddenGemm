@@ -1,7 +1,8 @@
-// #include <mpi.h>
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <unistd.h>
 
 /*
 AG A COL 1d hidden gemm
@@ -40,22 +41,22 @@ should I make it so only rank 0 has access to the matrices at the start and it h
 #define LARGE_N 15
 
 const int MINI_MATRIX_A[MINI_M][MINI_K] = {
-    {-5, -10, 5, -3, 6, -10, 5, -8},
-    {-4, -2, -4, -10, 6, 0, -7, 2},
-    {-10, 1, 3, -4, 2, -7, -7, -6},
-    {-9, 3, 8, -10, 5, -7, 5, 7},
-    {-9, -4, 2, 1, 6, 6, -1, -1},
-    {8, 4, 0, 3, 7, -1, 5, 5},
-    {-2, 8, 0, -6, -10, 9, -2, -5},
-    {-4, -10, -1, -6, 5, -2, 3, -2},
-    {-6, 6, 6, -4, 2, 5, 0, 6},
-    {-10, -9, -9, -6, 8, -3, 1, -8},
-    {6, 8, 6, -5, -9, -1, -4, 1},
-    {-7, -6, 4, 1, -5, 8, -10, -8},
-    {-5, 9, -7, -8, -1, 1, 0, -8},
-    {-8, 9, -2, 1, -1, 5, 6, -5},
-    {-2, 4, -5, 3, -3, -8, 2, 2},
-    {-7, 4, 2, -10, -1, 3, -5, 5},
+    {-5, -10,  5,  -3,   6, -10,   5, -8},
+    {-4,  -2, -4, -10,   6,   0,  -7,  2},
+    {-10,  1,  3,  -4,   2,  -7,  -7, -6},
+    {-9,   3,  8, -10,   5,  -7,   5,  7},
+    {-9,  -4,  2,   1,   6,   6,  -1, -1},
+    {8,    4,  0,   3,   7,  -1,   5,  5},
+    {-2,   8,  0,  -6, -10,   9,  -2, -5},
+    {-4, -10, -1,  -6,   5,  -2,   3, -2},
+    {-6,   6,  6,  -4,   2,   5,   0,  6},
+    {-10, -9, -9,  -6,   8,  -3,   1, -8},
+    {6,    8,  6,  -5,  -9,  -1,  -4,  1},
+    {-7,  -6,  4,   1,  -5,   8, -10, -8},
+    {-5,   9, -7,  -8,  -1,   1,   0, -8},
+    {-8,   9, -2,   1,  -1,   5,   6, -5},
+    {-2,   4, -5,   3,  -3,  -8,   2,  2},
+    {-7,   4,  2, -10,  -1,   3,  -5,  5},
 };
 
 const int MINI_MATRIX_B[MINI_K][MINI_N] = {
@@ -164,6 +165,18 @@ int* split_matrix_along_columns(const int start_col, const int end_col, const in
 }
 
 int main(int argc, int* argv) {
+
+    {
+        volatile int i = 0;
+        char hostname[256];
+        gethostname(hostname, sizeof(hostname));
+        printf("PID %d on %s ready for attach\n", getpid(), hostname);
+        fflush(stdout);
+        while (0 == i)
+            sleep(5);
+    }
+
+
     // for mini matrix the world size must be 4
     MPI_Init(NULL, NULL);
 
@@ -171,15 +184,18 @@ int main(int argc, int* argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     // make sure we run on 4 processors so everything splits nice
-    // assert(size == 4);
-    size = 4;
-    rank = 1;
+    assert(size == 4);
     // initial distributions
 
     // note the MINI_X we use is the dimension we have split the matrix across
     int* A_I = split_matrix_along_columns(rank * (MINI_K / size), (rank + 1) * (MINI_K / size), MINI_M, MINI_K, MINI_MATRIX_A);
     int* B_I = split_matrix_along_columns(rank * (MINI_N / size), (rank + 1) * (MINI_N / size), MINI_K, MINI_N, MINI_MATRIX_B);
     int* C_I = split_matrix_along_columns(rank * (MINI_N / size), (rank + 1) * (MINI_N / size), MINI_M, MINI_N, MINI_MATRIX_C);
+
+    int A_I_cols = (rank + 1) * (MINI_K / size) - rank * (MINI_K / size);
+    int B_I_cols = (rank + 1) * (MINI_N / size) - rank * (MINI_N / size);
+    int C_I_cols = (rank + 1) * (MINI_N / size) - rank * (MINI_N / size);
+
 
     if (rank == -1) {
         print_buffer(MINI_M, 2, A_I);
@@ -192,21 +208,61 @@ int main(int argc, int* argv) {
 
     int prev_rank = (rank + size - 1) % size;
     int next_rank = (rank + 1) % size;
+    int A_elements = MINI_M * (((rank + 1) * (MINI_K / size)) - (rank * (MINI_K / size)));
 
-    for (int i = 0; i < size; i++) {
-        // TODO use Isend and Irecv to asynchronously to sending and receiving to ensure communication hiding I think
-        // int* A_Temp = (int*) malloc(MINI_M * ((rank + 1) * (MINI_K / size) - ())); 
-        // MPI_ISend();
-        // MPI_IRecv()
+    for (int cycle = 0; cycle < size; cycle++) {
+
+        int* A_temp = (int*) malloc(A_elements * sizeof(int));
+
+        MPI_Request send_request, recv_request;
+        MPI_Status recv_status;
+
+        MPI_Isend(A_I, A_elements, MPI_INT, next_rank, 0, MPI_COMM_WORLD, &send_request);
+        MPI_Irecv(A_temp, A_elements, MPI_INT, prev_rank, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
+
+        // printf("%d is doing computation now with %d elements\n", rank, A_elements);
+        
+        // if (rank == 0) {
+        //     print_buffer(MINI_M, 2, A_I);
+        //     printf("\n");
+        // }
+
+        // need a B start
+
+        int shared_width = MINI_K / size;
+
+
+        for (int i = 0; i < MINI_M; i++) {
+            int B_start_index = (shared_width * (rank - cycle)) % MINI_K;
+            for (int j = B_start_index; j < B_start_index + shared_width; j++) {
+                for (int k = 0; k < shared_width; k++) {
+                    if (rank == 1) {
+                        printf("(i,j,k) = (%d,%d,%d)\n", i, j, k);
+                    }
+                    // int test = C_I[i * C_I_cols + j];
+                    // C_I[i * C_I_cols + j] = C_I[i * C_I_cols + j] + A_I[i * A_I_cols + k] * B_I[k * B_I_cols + j];
+                }
+            }
+        }
+
+        MPI_Wait(&send_request, MPI_STATUS_IGNORE);
+        MPI_Wait(&recv_request, &recv_status);
+        
+        free(A_I);
+        A_I = A_temp;
     }
+
+
+    if (rank == 0) {
+        // print_buffer(16, 4, C_I);
+    }
+
+    // standard_matrix_multiply(MINI_M, MINI_K, MINI_N, MINI_MATRIX_A, MINI_MATRIX_B, MINI_MATRIX_C);
+    // print_matrix(MINI_M, MINI_N, MINI_MATRIX_C);
 
     free(A_I);
     free(B_I);
     free(C_I);
-
-
-    // standard_matrix_multiply(MINI_M, MINI_K, MINI_N, MINI_MATRIX_A, MINI_MATRIX_B, MINI_MATRIX_C);
-    // print_matrix(MINI_M, MINI_N, MINI_MATRIX_C);
 
     MPI_Finalize();
 

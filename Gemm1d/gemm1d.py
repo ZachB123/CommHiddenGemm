@@ -16,8 +16,6 @@ def allgather_A_col(A_I, B_I, C_I, out):
     # C m x n
     m = A_I.shape[0]
     k = B_I.shape[0]
-    n = C_I.shape[1] * size
-
 
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
@@ -25,7 +23,7 @@ def allgather_A_col(A_I, B_I, C_I, out):
     for cycle in range(size):
 
         # buffer has n rows and k/size columns
-        buffer = np.empty((m, int(k/size)), dtype=MATRIX_DTYPE) 
+        buffer = np.empty((m, k // size), dtype=MATRIX_DTYPE) 
         send_request = comm.Isend(np.ascontiguousarray(A_I), next_rank, 0) # no Isendrecv?
         receive_request = comm.Irecv(buffer, prev_rank, MPI.ANY_TAG)
 

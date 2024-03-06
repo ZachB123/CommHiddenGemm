@@ -71,7 +71,7 @@ const int MINI_MATRIX_B[MINI_K][MINI_N] = {
 
 
 // C is just set to 0 now but would work if it was set to something else
-int MINI_MATRIX_C[MINI_M][MINI_N] = {
+const int MINI_MATRIX_C[MINI_M][MINI_N] = {
     {0,0,0,0},
     {0,0,0,0},
     {0,0,0,0},
@@ -109,12 +109,17 @@ const int EXPECTED_MINI_MATRIX_C[MINI_M][MINI_N] = {
     {35, -138, -97, -34}
 };
 
-const int LARGE_MATRIX_A[LARGE_M][LARGE_K] = {};
-const int LARGE_MATRIX_B[LARGE_K][LARGE_N] = {};
-const int LARGE_MATRIX_C[LARGE_M][LARGE_N] = {};
+// const int LARGE_MATRIX_A[LARGE_M][LARGE_K] = {};
+// const int LARGE_MATRIX_B[LARGE_K][LARGE_N] = {};
+// const int LARGE_MATRIX_C[LARGE_M][LARGE_N] = {};
 
 int rank;
 int size;
+
+int python_mod(int n, int m) {
+    // ((n % M) + M) % M
+    return ((n % m) + m) % m;
+}
 
 void print_matrix(int m, int n, const int M[m][n]) {
     // this will probably break if 4 digit numbers or greater are introduced
@@ -163,7 +168,7 @@ int* split_matrix_along_columns(const int start_col, const int end_col, const in
     return sub_matrix;
 }
 
-int main(int argc, int* argv) {
+int main(int argc, char** argv) {
 
     // {
     //     volatile int i = 0;
@@ -175,6 +180,7 @@ int main(int argc, int* argv) {
     //         sleep(5);
     // }
 
+    printf("%d\n", -1 % 10);
 
     // for mini matrix the world size must be 4
     MPI_Init(NULL, NULL);
@@ -232,13 +238,12 @@ int main(int argc, int* argv) {
 
         int shared_width = MINI_K / size;
 
-        int k_start_index = (shared_width * (rank - cycle)) % MINI_K;
+        int k_start_index = python_mod(shared_width * (rank - cycle), MINI_K);
         for (int i = 0; i < MINI_M; i++) {
             // B start index needs to be k start index somehow since B is locked into place
             for (int j = 0; j < MINI_N / size; j++) {
                 int inner_a = 0;
                 for (int k = k_start_index; k < k_start_index + shared_width; k++) {
-                    // int test = C_I[i * C_I_cols + j];
                     C_I[i * C_I_cols + j] = C_I[i * C_I_cols + j] + A_I[i * A_I_cols + inner_a] * B_I[k * B_I_cols + j];
                     inner_a++;
                 }
@@ -252,9 +257,24 @@ int main(int argc, int* argv) {
         A_I = A_temp;
     }
 
-
     if (rank == 0) {
-        print_buffer(16, 4, C_I);
+        printf("\nRank 0:\n");
+        print_buffer(16, 1, C_I);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (rank == 1) {
+        printf("\nRank 1:\n");
+        print_buffer(16, 1, C_I);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (rank == 2) {
+        printf("\nRank 2:\n");
+        print_buffer(16, 1, C_I);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (rank == 3) {
+        printf("\nRank 3:\n");
+        print_buffer(16, 1, C_I);
     }
 
     // standard_matrix_multiply(MINI_M, MINI_K, MINI_N, MINI_MATRIX_A, MINI_MATRIX_B, MINI_MATRIX_C);

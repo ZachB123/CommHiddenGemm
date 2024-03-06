@@ -27,10 +27,7 @@ all matrix values are random in the rand [-10,9)
 */
 
 
-/*
-Questions: should the matrices be floats?
-should I make it so only rank 0 has access to the matrices at the start and it has to scatter them
-*/
+
 
 #define MINI_M 16
 #define MINI_K 8
@@ -39,6 +36,8 @@ should I make it so only rank 0 has access to the matrices at the start and it h
 #define LARGE_M 60
 #define LARGE_K 30
 #define LARGE_N 15
+
+// tile for each processor
 
 const int MINI_MATRIX_A[MINI_M][MINI_K] = {
     {-5, -10,  5,  -3,   6, -10,   5, -8},
@@ -166,15 +165,15 @@ int* split_matrix_along_columns(const int start_col, const int end_col, const in
 
 int main(int argc, int* argv) {
 
-    {
-        volatile int i = 0;
-        char hostname[256];
-        gethostname(hostname, sizeof(hostname));
-        printf("PID %d on %s ready for attach\n", getpid(), hostname);
-        fflush(stdout);
-        while (0 == i)
-            sleep(5);
-    }
+    // {
+    //     volatile int i = 0;
+    //     char hostname[256];
+    //     gethostname(hostname, sizeof(hostname));
+    //     printf("PID %d on %s ready for attach\n", getpid(), hostname);
+    //     fflush(stdout);
+    //     while (0 == i)
+    //         sleep(5);
+    // }
 
 
     // for mini matrix the world size must be 4
@@ -205,6 +204,8 @@ int main(int argc, int* argv) {
         print_buffer(MINI_M, 1, C_I);
     }
 
+// Use synthetic input so we can easily calculate the output - everyone generates local part of matrix they own
+
 
     int prev_rank = (rank + size - 1) % size;
     int next_rank = (rank + 1) % size;
@@ -231,16 +232,15 @@ int main(int argc, int* argv) {
 
         int shared_width = MINI_K / size;
 
-
+        int k_start_index = (shared_width * (rank - cycle)) % MINI_K;
         for (int i = 0; i < MINI_M; i++) {
-            int B_start_index = (shared_width * (rank - cycle)) % MINI_K;
-            for (int j = B_start_index; j < B_start_index + shared_width; j++) {
-                for (int k = 0; k < shared_width; k++) {
-                    if (rank == 1) {
-                        printf("(i,j,k) = (%d,%d,%d)\n", i, j, k);
-                    }
+            // B start index needs to be k start index somehow since B is locked into place
+            for (int j = 0; j < MINI_N / size; j++) {
+                int inner_a = 0;
+                for (int k = k_start_index; k < k_start_index + shared_width; k++) {
                     // int test = C_I[i * C_I_cols + j];
-                    // C_I[i * C_I_cols + j] = C_I[i * C_I_cols + j] + A_I[i * A_I_cols + k] * B_I[k * B_I_cols + j];
+                    C_I[i * C_I_cols + j] = C_I[i * C_I_cols + j] + A_I[i * A_I_cols + inner_a] * B_I[k * B_I_cols + j];
+                    inner_a++;
                 }
             }
         }
@@ -254,7 +254,7 @@ int main(int argc, int* argv) {
 
 
     if (rank == 0) {
-        // print_buffer(16, 4, C_I);
+        print_buffer(16, 4, C_I);
     }
 
     // standard_matrix_multiply(MINI_M, MINI_K, MINI_N, MINI_MATRIX_A, MINI_MATRIX_B, MINI_MATRIX_C);

@@ -3,7 +3,7 @@ from mpi4py import MPI
 
 from util import MATRIX_DTYPE
 
-def allgather_A_col(A_I, B_I, C_I, out):
+def allgather_A_col(A_I, B_I, C_I):
 
 
     comm = MPI.COMM_WORLD
@@ -16,6 +16,7 @@ def allgather_A_col(A_I, B_I, C_I, out):
     # C m x n
     m = A_I.shape[0]
     k = B_I.shape[0]
+    n = C_I.shape[1] * size
 
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
@@ -45,8 +46,10 @@ def allgather_A_col(A_I, B_I, C_I, out):
 
 
     # Any better way to do this than to transpose? it seems kinda awkward
+    out = np.empty((n,m), dtype=MATRIX_DTYPE)
     comm.Gather(C_I, out, root=0)
-
+    return np.transpose(out)
+    
 
 
 

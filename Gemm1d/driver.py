@@ -27,11 +27,11 @@ if __name__ == "__main__":
     B_I = MINI_MATRIX_B[:, rank * (n // size) : (rank + 1) * (n // size)]
     C_I = MINI_MATRIX_C[:, rank * (n // size) : (rank + 1) * (n // size)]
 
-    out = np.empty((n,m), dtype=MATRIX_DTYPE)
+    # out = np.empty((n,m), dtype=MATRIX_DTYPE)
 
-    allgather_A_col(A_I, B_I, C_I, out)
+    out = allgather_A_col(A_I, B_I, C_I)
     
     if (rank == 0):
-        print(out.T)
-        print(f"Correct output?: {matrices_equal(out.T, standard_multiply)}")
+        print(out)
+        print(f"Correct output?: {matrices_equal(out, standard_multiply)}")
         

@@ -1,5 +1,8 @@
 import numpy as np
 
+# seeding is currently required so all processes pull the same matrix randomly
+np.random.seed(42)
+
 MATRIX_DTYPE = np.float64
 
 MINI_MATRIX_A = np.array([
@@ -52,3 +55,18 @@ EXPECTED_MINI_MATRIX_C = np.array([
     [-58, -13, -4, -61],
     [35, -138, -97, -34]
 ], dtype=MATRIX_DTYPE)
+
+
+def generate_matrix(row, col, min, max):
+    # [min, max)
+    return np.random.randint(min, max, size=(row,col)).astype(MATRIX_DTYPE, copy=False)
+
+def matrix_multiply(a,b,c):
+    return np.matmul(a,b) + c 
+
+def matrices_equal(A, B):
+    return np.isclose(A, B).all()
+
+def calculate_throughput(time, m, n, k):
+    # Giga flops per second
+    return (2 * m * n * k / time) * 1e-9

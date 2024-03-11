@@ -1,15 +1,14 @@
 import numpy as np
 from mpi4py import MPI
+import logging
 
 from util import MATRIX_DTYPE
 
 def allgather_A_col(A_I, B_I, C_I):
 
-
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
-
 
     # A m x k
     # B k x n
@@ -17,6 +16,9 @@ def allgather_A_col(A_I, B_I, C_I):
     m = A_I.shape[0]
     k = B_I.shape[0]
     n = C_I.shape[1] * size
+
+    if rank == 0:
+        print(f"calculated ({m},{k},{n})")
 
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
@@ -45,12 +47,62 @@ def allgather_A_col(A_I, B_I, C_I):
         A_I = buffer
 
 
-    # Any better way to do this than to transpose? it seems kinda awkward
-    out = np.empty((n,m), dtype=MATRIX_DTYPE)
-    comm.Gather(C_I, out, root=0)
-    return np.transpose(out)
-    
+    # this provides an array for each like value
+    gathered_result = comm.gather(C_I, root=0)
+    if rank == 0:
+        return np.concatenate(gathered_result, axis=1)
+    return None
 
+def allgather_A_row(A_I, B_I, C_I):
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+
+    # A m x k
+    # B k x n
+    # C m x n
+    m = C_I.shape[0]
+    k = B_I.shape[0]
+    n = C_I.shape[1] * size
+
+    if rank == 0:
+        print(f"calculated ({m},{k},{n})")
+
+    prev_rank = (rank + size - 1) % size
+    next_rank = (rank + 1) % size
+
+    for cycle in range(size):
+
+        # buffer has m / sizes rows and k columns
+        buffer = np.empty((m // size, k), dtype=MATRIX_DTYPE) 
+        send_request = comm.Isend(np.ascontiguousarray(A_I), next_rank, 0) # no Isendrecv?
+        receive_request = comm.Irecv(buffer, prev_rank, MPI.ANY_TAG)
+
+        local_matrix = np.matmul(A_I, B_I)
+        shared_m_index = ((m // size) * (rank - cycle)) % m
+        C_I[shared_m_index : shared_m_index + (m // size),:] += local_matrix
+
+        MPI.Request.waitall([send_request, receive_request])
+        A_I = buffer
+
+
+    # this provides an array for each like value
+    gathered_result = comm.gather(C_I, root=0)
+    if rank == 0:
+        return np.concatenate(gathered_result, axis=1)
+    return None
+    
+def allgather_B_col(A_I, B_I, C_I):
+    pass
+
+def allgather_B_row(A_I, B_I, C_I):
+    pass
+
+def reducescatter_C_col(A_I, B_I, C_I):
+    pass
+
+def reducescatter_C_row(A_I, B_I, C_I):
+    pass
 
 
 

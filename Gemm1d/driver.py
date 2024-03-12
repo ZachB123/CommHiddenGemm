@@ -4,7 +4,8 @@ from mpi4py import MPI
 import logging
 import sys
 import argparse
-from util import (MATRIX_DTYPE, MINI_MATRIX_A, MINI_MATRIX_B, MINI_MATRIX_C, generate_matrix, matrix_multiply, matrices_equal, calculate_throughput)
+from util import (MATRIX_DTYPE, MINI_MATRIX_A, MINI_MATRIX_B, MINI_MATRIX_C, generate_matrix, matrix_multiply, matrices_equal, 
+                  calculate_throughput, split_matrix)
 from gemm1d import allgather_A_col, allgather_A_row, allgather_B_col, allgather_B_row, reducescatter_C_col, reducescatter_C_row
 
 logging.basicConfig(level=logging.DEBUG) # nothing is 51
@@ -58,7 +59,6 @@ def parse_command_line_args():
     return (m,k,n,strategy)
 
 def main():
-    strategies = [allgather_A_col, allgather_A_row, allgather_B_col, allgather_B_row, reducescatter_C_col, reducescatter_C_row]
     m, k, n, strategy = parse_command_line_args()
 
     print(f"(m,k,n) = ({m},{k},{n})")
@@ -85,20 +85,35 @@ def main():
     A_I, B_I, C_I = [None] * 3
 
     if strategy.__name__ == "allgather_A_col":
-        A_I = MATRIX_A[:, rank * (k // size) : (rank + 1) * (k // size)]
-        B_I = MATRIX_B[:, rank * (n // size) : (rank + 1) * (n // size)]
-        C_I = MATRIX_C[:, rank * (n // size) : (rank + 1) * (n // size)]
+        A_I = split_matrix(MATRIX_A, "c", rank, size)
+        B_I = split_matrix(MATRIX_B, "c", rank, size)
+        C_I = split_matrix(MATRIX_C, "c", rank, size)
     elif strategy.__name__ == "allgather_A_row":
-        A_I = MATRIX_A[rank * (m // size) : (rank + 1) * (m // size),:]
-        B_I = MATRIX_B[:, rank * (n // size) : (rank + 1) * (n // size)]
-        C_I = MATRIX_C[:, rank * (n // size) : (rank + 1) * (n // size)]
-
+        A_I = split_matrix(MATRIX_A, "r", rank, size)
+        B_I = split_matrix(MATRIX_B, "c", rank, size)
+        C_I = split_matrix(MATRIX_C, "c", rank, size)
+    elif strategy.__name__ == "allgather_B_col":
+        A_I = split_matrix(MATRIX_A, "r", rank, size)
+        B_I = split_matrix(MATRIX_B, "c", rank, size)
+        C_I = split_matrix(MATRIX_C, "r", rank, size)
+    elif strategy.__name__ == "allgather_B_row":
+        A_I = split_matrix(MATRIX_A, "r", rank, size)
+        B_I = split_matrix(MATRIX_B, "r", rank, size)
+        C_I = split_matrix(MATRIX_C, "r", rank, size)
+    elif strategy.__name__ == "reducescatter_C_col":
+        A_I = split_matrix(MATRIX_A, "c", rank, size)
+        B_I = split_matrix(MATRIX_B, "r", rank, size)
+        C_I = split_matrix(MATRIX_C, "c", rank, size)
+    elif strategy.__name__ == "reducescatter_C_row":
+        A_I = split_matrix(MATRIX_A, "c", rank, size)
+        B_I = split_matrix(MATRIX_B, "r", rank, size)
+        C_I = split_matrix(MATRIX_C, "r", rank, size) 
+        
 
     # only rank 0 has the full out matrix
     start_time = MPI.Wtime()
     out = strategy(A_I, B_I, C_I)
     elapsed_time = MPI.Wtime() - start_time
-
 
     if (rank == 0):
         print(f"Output:\n{out}")

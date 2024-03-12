@@ -70,3 +70,12 @@ def matrices_equal(A, B):
 def calculate_throughput(time, m, n, k):
     # Giga flops per second
     return (2 * m * n * k / time) * 1e-9
+
+def split_matrix(matrix, axis, rank, size):
+    if axis == "r":
+        dimension_length = matrix.shape[0]
+        return matrix[rank * (dimension_length // size) : (rank + 1) * (dimension_length // size), :]
+    elif axis == "c":
+        dimension_length = matrix.shape[1]
+        return matrix[:, rank * (dimension_length // size) : (rank + 1) * (dimension_length // size)]
+    raise ValueError("Invalid Axis")

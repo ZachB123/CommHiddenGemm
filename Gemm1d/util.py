@@ -1,7 +1,7 @@
 import numpy as np
 
 # seeding is currently required so all processes pull the same matrix randomly
-np.random.seed(42)
+np.random.seed(420)
 
 MATRIX_DTYPE = np.float64
 

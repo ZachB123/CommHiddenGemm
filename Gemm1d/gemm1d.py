@@ -22,7 +22,7 @@ def allgather_A_col(A_I, B_I, C_I):
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
 
-    for cycle in range(size):
+    for cycle in range(size - 1):
 
         # buffer has n rows and k/size columns
         buffer = np.empty((m, k // size), dtype=MATRIX_DTYPE) 
@@ -42,9 +42,15 @@ def allgather_A_col(A_I, B_I, C_I):
         relevant_b_part = B_I[shared_k_index : shared_k_index + (k // size), :]
         C_I = C_I + np.matmul(A_I, relevant_b_part)
 
+
         MPI.Request.waitall([send_request, receive_request])
         A_I = buffer
 
+
+    # I have no idea why 2 * size + 1 works here
+    shared_k_index = ((k // size) * (rank - 2 * size  + 1)) % k
+    relevant_b_part = B_I[shared_k_index : shared_k_index + (k // size), :]
+    C_I = C_I + np.matmul(A_I, relevant_b_part)
 
     # this provides an array for each like value
     gathered_result = comm.gather(C_I, root=0)
@@ -70,7 +76,7 @@ def allgather_A_row(A_I, B_I, C_I):
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
 
-    for cycle in range(size):
+    for cycle in range(size - 1):
 
         # buffer has m / sizes rows and k columns
         buffer = np.empty((m // size, k), dtype=MATRIX_DTYPE) 
@@ -84,6 +90,9 @@ def allgather_A_row(A_I, B_I, C_I):
         MPI.Request.waitall([send_request, receive_request])
         A_I = buffer
 
+    local_matrix = np.matmul(A_I, B_I)
+    shared_m_index = ((m // size) * (rank - 2 * size + 1)) % m
+    C_I[shared_m_index : shared_m_index + (m // size),:] += local_matrix
 
     # this provides an array for each like value
     gathered_result = comm.gather(C_I, root=0)
@@ -109,7 +118,7 @@ def allgather_B_col(A_I, B_I, C_I):
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
 
-    for cycle in range(size):
+    for cycle in range(size - 1):
 
         # buffer has k rows and n // size columns
         buffer = np.empty((k, n // size), dtype=MATRIX_DTYPE) 
@@ -123,6 +132,10 @@ def allgather_B_col(A_I, B_I, C_I):
         MPI.Request.waitall([send_request, receive_request])
         B_I = buffer
 
+
+    local_matrix = np.matmul(A_I, B_I)
+    shared_n_index = ((n // size) * (rank - 2 * size + 1)) % n
+    C_I[:, shared_n_index : shared_n_index + (n // size)] += local_matrix
 
     # this provides an array for each like value
     gathered_result = comm.gather(C_I, root=0)
@@ -148,7 +161,7 @@ def allgather_B_row(A_I, B_I, C_I):
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
 
-    for cycle in range(size):
+    for cycle in range(size - 1):
 
         # buffer has k / size rows and n columns
         buffer = np.empty((k // size, n), dtype=MATRIX_DTYPE) 
@@ -157,12 +170,14 @@ def allgather_B_row(A_I, B_I, C_I):
         
         shared_k_index = ((k // size) * (rank - cycle)) % k
         relevant_a_part = A_I[:, shared_k_index : shared_k_index + (k // size)]
-
         C_I = C_I + np.matmul(relevant_a_part, B_I)
 
         MPI.Request.waitall([send_request, receive_request])
         B_I = buffer
 
+    shared_k_index = ((k // size) * (rank - 2 * size + 1)) % k
+    relevant_a_part = A_I[:, shared_k_index : shared_k_index + (k // size)]
+    C_I = C_I + np.matmul(relevant_a_part, B_I)
 
     # this provides an array for each like value
     gathered_result = comm.gather(C_I, root=0)

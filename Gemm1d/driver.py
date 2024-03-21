@@ -6,8 +6,10 @@ import sys
 import argparse
 from util import (MATRIX_DTYPE, MINI_MATRIX_A, MINI_MATRIX_B, MINI_MATRIX_C, generate_matrix, matrix_multiply, matrices_equal, 
                   calculate_throughput, split_matrix)
-from gemm1d import allgather_A_col, allgather_A_row, allgather_B_col, allgather_B_row, reducescatter_C_col, reducescatter_C_row
-
+from gemm1d import (allgather_A_col, allgather_A_row, allgather_B_col, allgather_B_row, reducescatter_C_col, reducescatter_C_row,
+                    algorithm1, algorithm2, throughput_test)
+from gemm1d_no_compute import (allgather_A_col_no_compute, allgather_A_row_no_compute, allgather_B_col_no_compute, allgather_B_row_no_compute, 
+                               reducescatter_C_col_no_compute, reducescatter_C_row_no_compute, algorithm1_no_compute, algorithm2_no_compute)
 logging.basicConfig(level=logging.DEBUG) # nothing is 51
 
 DEFAULT_STRATEGY = allgather_A_col
@@ -18,6 +20,7 @@ def parse_command_line_args():
     parser.add_argument('-k', dest="k", type=int, help='K dimension', default=None)
     parser.add_argument('-n', dest="n", type=int, help='N dimension', default=None)
     parser.add_argument('-s', '--strategy', dest='strategy', type=str, help='Specify strategy', default=None)
+    parser.add_argument('-nc', '--no-compute', dest='no_compute', action="store_true")
     args = parser.parse_args()
 
     m = args.m
@@ -47,8 +50,18 @@ def parse_command_line_args():
             strategy = DEFAULT_STRATEGY
         print(f"No strategy provided using best option based on dimensions which is {strategy.__name__}")
     else:
-        strategies = [allgather_A_col, allgather_A_row, allgather_B_col, allgather_B_row, reducescatter_C_col, reducescatter_C_row]
-        strategy = [strat for strat in strategies if strategy == strat.__name__]
+        local_index = 1 if args.no_compute and strategy != "throughput_test" else 0
+        strategies = [(allgather_A_col, allgather_A_col_no_compute),
+                      (allgather_A_row, allgather_A_row_no_compute),
+                      (allgather_B_col, allgather_B_col_no_compute),
+                      (allgather_B_row, allgather_B_row_no_compute),
+                      (reducescatter_C_col, reducescatter_C_col_no_compute),
+                      (reducescatter_C_row, reducescatter_C_row_no_compute), 
+                      (algorithm1, algorithm1_no_compute),
+                      (algorithm2, algorithm2_no_compute),
+                      (throughput_test,)
+                      ]
+        strategy = [strat[local_index] for strat in strategies if strategy == strat[0].__name__]
         if len(strategy) == 0:
             parser.error(f"Provided strategy is not one of the presets of: \n {[strat.__name__ for strat in strategies]}")
         strategy = strategy[0]
@@ -70,7 +83,7 @@ def main():
     size = comm.Get_size()
 
 
-    assert size > 1 and all(dimension % size == 0 for dimension in [m, k, n]), "All dimensions must be divisible by the number of processors"
+    assert all(dimension % size == 0 for dimension in [m, k, n]), "All dimensions must be divisible by the number of processors"
 
     MATRIX_A = generate_matrix(m, k, -10, 10)
     MATRIX_B = generate_matrix(k, n, -10, 10)
@@ -84,30 +97,34 @@ def main():
 
     A_I, B_I, C_I = [None] * 3
 
-    if strategy.__name__ == "allgather_A_col":
+    if strategy.__name__ in ["allgather_A_col", "allgather_A_col_no_compute"]:
         A_I = split_matrix(MATRIX_A, "c", rank, size)
         B_I = split_matrix(MATRIX_B, "c", rank, size)
         C_I = split_matrix(MATRIX_C, "c", rank, size)
-    elif strategy.__name__ == "allgather_A_row":
+    elif strategy.__name__ in ["allgather_A_row", "allgather_A_row_no_compute"]:
         A_I = split_matrix(MATRIX_A, "r", rank, size)
         B_I = split_matrix(MATRIX_B, "c", rank, size)
         C_I = split_matrix(MATRIX_C, "c", rank, size)
-    elif strategy.__name__ == "allgather_B_col":
+    elif strategy.__name__ in ["allgather_B_col", "allgather_B_col_no_compute"]:
         A_I = split_matrix(MATRIX_A, "r", rank, size)
         B_I = split_matrix(MATRIX_B, "c", rank, size)
         C_I = split_matrix(MATRIX_C, "r", rank, size)
-    elif strategy.__name__ == "allgather_B_row":
+    elif strategy.__name__ in ["allgather_B_row", "allgather_B_row_no_compute" "algorithm1", "algorithm1_no_compute", "algorithm2" "algorithm2_no_compute"]:
         A_I = split_matrix(MATRIX_A, "r", rank, size)
         B_I = split_matrix(MATRIX_B, "r", rank, size)
         C_I = split_matrix(MATRIX_C, "r", rank, size)
-    elif strategy.__name__ == "reducescatter_C_col":
+    elif strategy.__name__ in ["reducescatter_C_col", "reducescatter_C_col_no_compute"]:
         A_I = split_matrix(MATRIX_A, "c", rank, size)
         B_I = split_matrix(MATRIX_B, "r", rank, size)
         C_I = split_matrix(MATRIX_C, "c", rank, size)
-    elif strategy.__name__ == "reducescatter_C_row":
+    elif strategy.__name__ in ["reducescatter_C_row", "reducescatter_C_row_no_compute"]:
         A_I = split_matrix(MATRIX_A, "c", rank, size)
         B_I = split_matrix(MATRIX_B, "r", rank, size)
-        C_I = split_matrix(MATRIX_C, "r", rank, size) 
+        C_I = split_matrix(MATRIX_C, "r", rank, size)
+    elif strategy.__name__ in ["throughput_test"]:
+        A_I = MATRIX_A
+        B_I = MATRIX_B
+        C_I = MATRIX_C
         
 
     # only rank 0 has the full out matrix

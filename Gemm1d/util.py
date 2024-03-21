@@ -1,8 +1,9 @@
 import numpy as np
 
 # seeding is currently required so all processes pull the same matrix randomly
-np.random.seed(420)
+np.random.seed(42)
 
+# if change to 32 the margin for error will be not as close
 MATRIX_DTYPE = np.float64
 
 MINI_MATRIX_A = np.array([
@@ -65,7 +66,10 @@ def matrix_multiply(a,b,c):
     return np.matmul(a,b) + c 
 
 def matrices_equal(A, B):
-    return np.isclose(A, B).all()
+    # use machine epsilon in future pass in delta - depends on floating point number format
+    # I have the tolerance really high rn
+    return np.allclose(A, B)
+
 
 def calculate_throughput(time, m, n, k):
     # Giga flops per second

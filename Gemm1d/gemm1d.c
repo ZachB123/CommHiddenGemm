@@ -180,7 +180,6 @@ int main(int argc, char** argv) {
     //         sleep(5);
     // }
 
-    printf("%d\n", -1 % 10);
 
     // for mini matrix the world size must be 4
     MPI_Init(NULL, NULL);

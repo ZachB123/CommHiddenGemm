@@ -5,6 +5,7 @@ np.random.seed(42)
 
 # if change to 32 the margin for error will be not as close
 MATRIX_DTYPE = np.float64
+BENCHMARK_FILE = "benchmark.csv"
 
 MINI_MATRIX_A = np.array([
     [-5, -10,  5,  -3,   6, -10,   5, -8],

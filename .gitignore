@@ -1,3 +1,5 @@
 *.btr
 __pycache__/
 GemmEnv/
+benchmark.csv
+*.csv

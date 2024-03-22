@@ -306,6 +306,7 @@ def algorithm1(A_I, B_I, C_I):
         print(f"calculated ({m},{k},{n})")
         # print
 
+    K = 0
     for K in range(size):
         # Btmp = np.empty((k // size, n), dtype=MATRIX_DTYPE)
         Btmp = comm.bcast(B_I, K)
@@ -335,6 +336,7 @@ def algorithm2(A_I, B_I, C_I):
     Btmp1 = comm.bcast(B_I, 0)
     Btmp2 = np.empty((k // size, n), dtype=MATRIX_DTYPE)
 
+    K = 0
     for K in range(1, size):
         if rank == K:
             Btmp2 = B_I

@@ -3,8 +3,8 @@
 #SBATCH --account hive-rvuduc3
 #SBATCH -phive
 #SBATCH -Jn8CHG
-#SBATCH -N1 # number of nodes
-#SBATCH -n8 # number of cores
+#SBATCH -N8 # number of nodes
+#SBATCH -n12 # number of cores
 #SBATCH --mem=0
 #SBATCH -t40
 #SBATCH -oReport-%j.out

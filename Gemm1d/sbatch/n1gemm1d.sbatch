@@ -4,7 +4,7 @@
 #SBATCH -phive
 #SBATCH -Jn1CHG
 #SBATCH -N1 # number of nodes
-#SBATCH -n1 # number of cores
+#SBATCH -n12 # number of cores
 #SBATCH --mem=0
 #SBATCH -t60
 #SBATCH -oReport-%j.out

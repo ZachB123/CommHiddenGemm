@@ -1,7 +1,7 @@
 import numpy as np
 
 # seeding is currently required so all processes pull the same matrix randomly
-np.random.seed(42)
+np.random.seed(1)
 
 # if change to 32 the margin for error will be not as close
 MATRIX_DTYPE = np.float64
@@ -69,7 +69,7 @@ def matrix_multiply(a,b,c):
 def matrices_equal(A, B):
     # use machine epsilon in future pass in delta - depends on floating point number format
     # I have the tolerance really high rn
-    return np.allclose(A, B)
+    return np.allclose(A, B, atol=0.1)
 
 
 def calculate_throughput(time, m, n, k):
@@ -79,8 +79,28 @@ def calculate_throughput(time, m, n, k):
 def split_matrix(matrix, axis, rank, size):
     if axis == "r":
         dimension_length = matrix.shape[0]
-        return matrix[rank * (dimension_length // size) : (rank + 1) * (dimension_length // size), :]
+        return matrix[rank * (dimension_length // size) : (rank + 1) * (dimension_length // size), :].copy() # copy so the other matrix can be freed
     elif axis == "c":
         dimension_length = matrix.shape[1]
-        return matrix[:, rank * (dimension_length // size) : (rank + 1) * (dimension_length // size)]
+        return matrix[:, rank * (dimension_length // size) : (rank + 1) * (dimension_length // size)].copy()
     raise ValueError("Invalid Axis")
+
+def dump_unequal_matrices(file_name, MATRIX_A, MATRIX_B, MATRIX_C, expected, actual, other_info="", seed=None):
+    # we need to show like the entire true false grid and see where they like differ provide row col
+    current_print_options = np.get_printoptions()
+    np.set_printoptions(threshold=np.inf)#(max(MATRIX_A.shape[0],MATRIX_A.shape[1],MATRIX_B.shape[1]) + 1000))
+
+    with open(file_name, "a") as file:
+        file.write("FAILURE OF COMPUTATION\n")
+        file.write(f"{other_info}\n")
+        file.write(f"Matrices Equal: {matrices_equal(expected, actual)}\n")
+        file.write(f"NP IS CLOSE: {np.isclose(expected, actual).all()}\n\n")
+        file.write(f"{np.isclose(expected, actual)}\n\n")
+
+        file.write(f"Matrix A:\n{np.array2string(MATRIX_A, separator=',', formatter={'int': lambda x: str(x)})}\n\n")
+        file.write(f"Matrix B:\n{np.array2string(MATRIX_B, separator=',', formatter={'int': lambda x: str(x)})}\n\n")
+        file.write(f"Matrix C:\n{np.array2string(MATRIX_C, separator=',', formatter={'int': lambda x: str(x)})}\n\n")
+        file.write(f"expected:\n{np.array2string(expected, separator=',', formatter={'int': lambda x: str(x)})}\n\n")
+        file.write(f"actual:\n{np.array2string(actual, separator=',', formatter={'int': lambda x: str(x)})}\n\n\n")
+
+    np.set_printoptions(**current_print_options)

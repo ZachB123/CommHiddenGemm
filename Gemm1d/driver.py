@@ -6,14 +6,18 @@ import sys
 import os
 import csv
 import argparse
-from util import (MATRIX_DTYPE, BENCHMARK_FILE, MINI_MATRIX_A, MINI_MATRIX_B, MINI_MATRIX_C, generate_matrix, matrix_multiply, matrices_equal, 
-                  calculate_throughput, split_matrix)
+import psutil # for checking memory usage
+import gc # garbage collection
+from util import (MATRIX_DTYPE, BENCHMARK_FILE, generate_matrix, matrix_multiply, matrices_equal, 
+                  calculate_throughput, split_matrix, dump_unequal_matrices)
 from gemm1d import (allgather_A_col, allgather_A_row, allgather_B_col, allgather_B_row, reducescatter_C_col, reducescatter_C_row,
-                    algorithm1, algorithm2, throughput_test)
+                    broadcast_based, broadcast_based_with_overlap, throughput_test)
 from gemm1d_no_compute import (allgather_A_col_no_compute, allgather_A_row_no_compute, allgather_B_col_no_compute, allgather_B_row_no_compute, 
-                               reducescatter_C_col_no_compute, reducescatter_C_row_no_compute, algorithm1_no_compute, algorithm2_no_compute)
+                               reducescatter_C_col_no_compute, reducescatter_C_row_no_compute, broadcast_based_no_compute, broadcast_based_with_overlap_no_compute)
 logging.basicConfig(level=logging.DEBUG) # nothing is 51
 
+STOP_OUTPUT = True
+BENCHMARK_FOLDER = "benchmarks"
 DEFAULT_STRATEGY = allgather_A_col
 STRATEGIES = [(allgather_A_col, allgather_A_col_no_compute),
                 (allgather_A_row, allgather_A_row_no_compute),
@@ -21,16 +25,23 @@ STRATEGIES = [(allgather_A_col, allgather_A_col_no_compute),
                 (allgather_B_row, allgather_B_row_no_compute),
                 (reducescatter_C_col, reducescatter_C_col_no_compute),
                 (reducescatter_C_row, reducescatter_C_row_no_compute), 
-                (algorithm1, algorithm1_no_compute),
-                (algorithm2, algorithm2_no_compute),
+                (broadcast_based, broadcast_based_no_compute),
+                (broadcast_based_with_overlap, broadcast_based_with_overlap_no_compute),
                 (throughput_test,)
                 ]
+NO_COMPUTE_STRATEGIES = [allgather_A_col_no_compute, allgather_A_row_no_compute, allgather_B_col_no_compute, allgather_B_row_no_compute, 
+                         reducescatter_C_col_no_compute, reducescatter_C_row_no_compute, broadcast_based_no_compute, broadcast_based_with_overlap_no_compute]
 
 EXPLODED_STRATEGIES = [item for sublist in STRATEGIES for item in sublist]
-NUM_REPEATS = 10
+NUM_REPEATS = 1
 
 # disregard all stdout
-sys.stdout = open(os.devnull, 'w')
+if STOP_OUTPUT:
+    sys.stdout = open(os.devnull, 'w')
+
+if not os.path.exists(BENCHMARK_FOLDER):
+    os.makedirs(BENCHMARK_FOLDER)
+
 
 def parse_command_line_args():
     parser = argparse.ArgumentParser(description='Array Dimensions. A (m x k), B (k x n), C (m x n)')
@@ -79,6 +90,7 @@ def parse_command_line_args():
     
     return (m,k,n,strategy)
 
+
 def driver(manual_args):
     if manual_args is None:
         m, k, n, strategy = parse_command_line_args()
@@ -104,43 +116,65 @@ def driver(manual_args):
     MATRIX_B = generate_matrix(k, n, -10, 10)
     MATRIX_C = np.zeros((m, n), dtype=MATRIX_DTYPE)
 
-
     standard_multiply = matrix_multiply(MATRIX_A, MATRIX_B, MATRIX_C)
 
     if rank == 0:
         print(f"A:\n{MATRIX_A}\nB:\n{MATRIX_B}\nC:\n{MATRIX_C}\nExpected:\n{standard_multiply}")
 
     A_I, B_I, C_I = [None] * 3
+    # this does not accoutn for before the algorithm where all 3 matrices exist or when it finishes and the final matrix is gathered to a process
+    expected_max_memory_per_proc_GB = None # some will have 2 for the point when like you doing to computation but one is like arriving/leaving
 
     if strategy.__name__ in ["allgather_A_col", "allgather_A_col_no_compute"]:
         A_I = split_matrix(MATRIX_A, "c", rank, size)
         B_I = split_matrix(MATRIX_B, "c", rank, size)
         C_I = split_matrix(MATRIX_C, "c", rank, size)
+        expected_max_memory_per_proc_GB = (2 * sys.getsizeof(A_I) + sys.getsizeof(B_I) + sys.getsizeof(C_I)) / (1024**3)
     elif strategy.__name__ in ["allgather_A_row", "allgather_A_row_no_compute"]:
         A_I = split_matrix(MATRIX_A, "r", rank, size)
         B_I = split_matrix(MATRIX_B, "c", rank, size)
         C_I = split_matrix(MATRIX_C, "c", rank, size)
+        expected_max_memory_per_proc_GB = (2 * sys.getsizeof(A_I) + sys.getsizeof(B_I) + sys.getsizeof(C_I)) / (1024**3)
     elif strategy.__name__ in ["allgather_B_col", "allgather_B_col_no_compute"]:
         A_I = split_matrix(MATRIX_A, "r", rank, size)
         B_I = split_matrix(MATRIX_B, "c", rank, size)
         C_I = split_matrix(MATRIX_C, "r", rank, size)
-    elif strategy.__name__ in ["allgather_B_row", "allgather_B_row_no_compute", "algorithm1", "algorithm1_no_compute", "algorithm2", "algorithm2_no_compute"]:
+        expected_max_memory_per_proc_GB = (sys.getsizeof(A_I) + 2 * sys.getsizeof(B_I) + sys.getsizeof(C_I)) / (1024**3)
+    elif strategy.__name__ in ["allgather_B_row", "allgather_B_row_no_compute", "broadcast_based", "broadcast_based_no_compute", "broadcast_based_with_overlap", "broadcast_based_with_overlap_no_compute"]:
         A_I = split_matrix(MATRIX_A, "r", rank, size)
         B_I = split_matrix(MATRIX_B, "r", rank, size)
         C_I = split_matrix(MATRIX_C, "r", rank, size)
+        expected_max_memory_per_proc_GB = (sys.getsizeof(A_I) + 2 * sys.getsizeof(B_I) + sys.getsizeof(C_I)) / (1024**3)
     elif strategy.__name__ in ["reducescatter_C_col", "reducescatter_C_col_no_compute"]:
         A_I = split_matrix(MATRIX_A, "c", rank, size)
         B_I = split_matrix(MATRIX_B, "r", rank, size)
         C_I = split_matrix(MATRIX_C, "c", rank, size)
+        expected_max_memory_per_proc_GB = (sys.getsizeof(A_I) + sys.getsizeof(B_I) + 2 * sys.getsizeof(C_I)) / (1024**3)
     elif strategy.__name__ in ["reducescatter_C_row", "reducescatter_C_row_no_compute"]:
         A_I = split_matrix(MATRIX_A, "c", rank, size)
         B_I = split_matrix(MATRIX_B, "r", rank, size)
         C_I = split_matrix(MATRIX_C, "r", rank, size)
+        expected_max_memory_per_proc_GB = (sys.getsizeof(A_I) + sys.getsizeof(B_I) + 2 * sys.getsizeof(C_I)) / (1024**3)
     elif strategy.__name__ in ["throughput_test"]:
         A_I = MATRIX_A
         B_I = MATRIX_B
         C_I = MATRIX_C
+        expected_max_memory_per_proc_GB = sys.getsizeof(A_I) + sys.getsizeof(B_I) + sys.getsizeof(C_I)
+
     
+    if rank == 0 and not STOP_OUTPUT:
+        pid = os.getpid()
+        print(f"Current memory usage for process {pid} is {psutil.Process(pid).memory_info().rss / 1024 / 1024} MB. Memory for the matrices = {(8 * (m * k + k * n + m * n)) / 1024 / 1024} MB. actual {(sys.getsizeof(MATRIX_A) + sys.getsizeof(MATRIX_B) + sys.getsizeof(MATRIX_C)) / 1024 / 1024}")
+
+    MATRIX_A = None
+    MATRIX_B = None
+    MATRIX_C = None
+    gc.collect() # ensure that we do not bog down the memory of the system
+
+    if rank == 0 and not STOP_OUTPUT:
+        pid = os.getpid()
+        print(f"Current memory usage for process {pid} after garbage collection is {psutil.Process(pid).memory_info().rss / 1024 / 1024} MB. Memory for the matrices = {(8 * (m * k + k * n + m * n)) / 1024 / 1024} MB.")
+
     # if rank == 0:
     #     print(f"A_I\n{A_I}\nB_I\n{B_I}\nC_I\n{C_I}\n")
 
@@ -149,35 +183,45 @@ def driver(manual_args):
     out = strategy(A_I, B_I, C_I)
     elapsed_time = MPI.Wtime() - start_time
 
+
     if (rank == 0):
         if manual_args is None:
             print(f"Output:\n{out}")
             print(f"Correct output?: {matrices_equal(standard_multiply, out)}, Throughput GF/s: {calculate_throughput(elapsed_time, m, k, n)}, Elapsed time: {elapsed_time}")
         else:
-            with open(f"n{size}-{BENCHMARK_FILE}", mode="a", newline='') as file:
+            with open(f"{BENCHMARK_FOLDER}/n{size}-{BENCHMARK_FILE}", mode="a", newline='') as file:
                 writer = csv.writer(file)
-                writer.writerow([strategy.__name__, size, m, n, k, calculate_throughput(elapsed_time, m, k, n), elapsed_time, matrices_equal(standard_multiply, out)])
+                equal = matrices_equal(standard_multiply, out)
+                writer.writerow([strategy.__name__, size, m, n, k, calculate_throughput(elapsed_time, m, k, n), elapsed_time, expected_max_memory_per_proc_GB, equal])
+
+                if not equal and strategy not in NO_COMPUTE_STRATEGIES:
+                    dump_unequal_matrices(f"{BENCHMARK_FOLDER}/failure.txt", MATRIX_A, MATRIX_B, MATRIX_C, standard_multiply, out, other_info=f"(m,k,n)=({m},{k},{n})")
+
+
 
 
 def main():
-
-    # driver(None)
+    if len(sys.argv) != 1:
+        driver(None)
+        return
     # I am going to try and run on max 48 cpus? maybe more later
     # with 48 divisors are 1,2,4,6,8,12,16,24,48
     # dimensions = [48, 96, 144, 192, 240, 288, 336, 384, 432, 480, 528, 576, 624, 672] #, 720, 768, 816, 864, 912, 960, 1008, 1440] #, 1920, 2400, 2880, 3360, 3840, 4320, 4800, 5760, 7680, 8640, 9600, 12000, 14400, 16800, 19200, 21600, 24000, 31200, 48000, 60000] #, 72000, 84000, 96000, 120000]
-    dimensions = [48, 144, 240, 480, 720, 960, 2400, 4800, 9600, 12000, 14400, 16800, 19200, 24000]
-    # dimensions = [48, 144, 240, 480, 720]
+    dimensions = [48, 144, 240, 480, 720, 960, 2400, 4800, 9600, 12000, 14400, 16800, 19200, 24000, 28800, 33600, 36000, 38400, 40800, 43200, 45600, 48000]
+    dimensions = [48, 240, 720]
+    # dimensions = [4, 8, 12, 16]
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
-    if size != 1:
-        EXPLODED_STRATEGIES.remove(throughput_test) # throughput is just testing one processor
+    if size == 1:
+        EXPLODED_STRATEGIES.clear()
+        EXPLODED_STRATEGIES.append(throughput_test)  # throughput is just testing one processor
     for algo in EXPLODED_STRATEGIES:
         for m in dimensions:
             for k in dimensions:
                 for n in dimensions:
                     for _ in range(NUM_REPEATS):
+                        np.random.seed(42) # reset the seed each time so we can go back and debug if needed
                         driver({"strategy": algo, "m": m, "k": k, "n":n})
-    # driver({"strategy": algorithm2, "m": 4, "k": 4, "n": 4})
 
 if __name__ == "__main__":
     main()

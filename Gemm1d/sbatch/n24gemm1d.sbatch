@@ -14,7 +14,7 @@
 
 cd $SLURM_SUBMIT_DIR
 
-module load anaconda3
+module load anaconda3 # can combine loads into one line
 module load py-mpi4py/3.1.2-mva2-rzdjbn
 
 

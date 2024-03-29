@@ -3,3 +3,5 @@ __pycache__/
 GemmEnv/
 benchmark.csv
 *.csv
+.ipynb_checkpoints/
+benchmarks/

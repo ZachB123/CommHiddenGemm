@@ -289,7 +289,7 @@ def reducescatter_C_row_no_compute(A_I, B_I, C_I):
         return np.concatenate(gathered_result, axis=0)
     return None
 
-def algorithm1_no_compute(A_I, B_I, C_I):
+def broadcast_based_no_compute(A_I, B_I, C_I):
     # all matrices split by rows
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -320,7 +320,8 @@ def algorithm1_no_compute(A_I, B_I, C_I):
         return np.concatenate(gathered_result, axis=0)
     return None
 
-def algorithm2_no_compute(A_I, B_I, C_I):
+# broadcast based with overlap
+def broadcast_based_with_overlap_no_compute(A_I, B_I, C_I):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
@@ -333,26 +334,36 @@ def algorithm2_no_compute(A_I, B_I, C_I):
     n = C_I.shape[1]
 
     # first broadcast in the algorithm is blocking
-    Btmp1 = comm.bcast(B_I, 0)
-    Btmp2 = np.empty((k // size, n), dtype=MATRIX_DTYPE)
+    Btmp = None
+    if rank == 0:
+        Btmp = comm.bcast(B_I, root=0)
+    else:
+        Btmp = comm.bcast(None, root=0)
+
+    Bnext = np.empty((k // size, n), dtype=MATRIX_DTYPE)
 
     K = 0
     for K in range(1, size):
+        bcast_request = None
         if rank == K:
-            Btmp2 = B_I
-        bcast_request = comm.Ibcast(Btmp2, K)
+            bcast_request = comm.Ibcast(B_I, root=K)
+            Bnext = B_I
+        else:
+            bcast_request = comm.Ibcast(Bnext, root=K)
 
-        # relevant_a_part = A_I[:, (K - 1) * (k // size) : (K) * (k // size)]
-        # C_I = C_I + np.matmul(relevant_a_part, Btmp1)
+        # relevant_a_part = A_I[:, (K - 1) * (k // size) : K * (k // size)]
+        # C_I = C_I + np.matmul(relevant_a_part, Btmp)
 
         status = MPI.Status()
         bcast_request.Wait(status=status)
+        comm.Barrier() # THE CODE WILL RANDOMLY FAIL LIKE 10% OF THE TIME WITHOUT THIS LINE
+        Btmp = Bnext
 
-        Btmp1 = Btmp2
+    
 
-    K = K + 1
+    K = size
     # relevant_a_part = A_I[:, (K - 1) * (k // size) : K * (k // size)]
-    # C_I = C_I + np.matmul(relevant_a_part, Btmp1)
+    # C_I = C_I + np.matmul(relevant_a_part, Btmp)
 
     gathered_result = comm.gather(C_I, root=0)
     if rank == 0:

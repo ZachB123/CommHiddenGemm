@@ -192,7 +192,7 @@ def driver(manual_args):
             with open(f"{BENCHMARK_FOLDER}/n{size}-{BENCHMARK_FILE}", mode="a", newline='') as file:
                 writer = csv.writer(file)
                 equal = matrices_equal(standard_multiply, out)
-                writer.writerow([strategy.__name__, size, m, n, k, calculate_throughput(elapsed_time, m, k, n), elapsed_time, expected_max_memory_per_proc_GB, equal])
+                writer.writerow([strategy.__name__, size, m, n, k, calculate_throughput(elapsed_time, m, k, n), elapsed_time, expected_max_memory_per_proc_GB / (1024**3), equal])
 
                 if not equal and strategy not in NO_COMPUTE_STRATEGIES:
                     dump_unequal_matrices(f"{BENCHMARK_FOLDER}/failure.txt", MATRIX_A, MATRIX_B, MATRIX_C, standard_multiply, out, other_info=f"(m,k,n)=({m},{k},{n})")
@@ -220,6 +220,8 @@ def main():
         if rank == 0:
             print(f"algorithm is {algo.__name__}", flush=True)
         for m in dimensions:
+            if rank == 0:
+                print(f"m is {m}", flush=True)
             for k in dimensions:
                 for n in dimensions:
                     for _ in range(NUM_REPEATS):

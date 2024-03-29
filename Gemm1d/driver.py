@@ -1,5 +1,4 @@
 import numpy as np
-np.set_printoptions(linewidth=np.inf)
 from mpi4py import MPI
 import logging
 import sys
@@ -16,7 +15,7 @@ from gemm1d_no_compute import (allgather_A_col_no_compute, allgather_A_row_no_co
                                reducescatter_C_col_no_compute, reducescatter_C_row_no_compute, broadcast_based_no_compute, broadcast_based_with_overlap_no_compute)
 logging.basicConfig(level=logging.DEBUG) # nothing is 51
 
-STOP_OUTPUT = True
+STOP_OUTPUT = False
 BENCHMARK_FOLDER = "benchmarks"
 DEFAULT_STRATEGY = allgather_A_col
 STRATEGIES = [(allgather_A_col, allgather_A_col_no_compute),
@@ -37,7 +36,8 @@ NUM_REPEATS = 10
 
 # disregard all stdout
 if STOP_OUTPUT:
-    sys.stdout = open(os.devnull, 'w')
+    # sys.stdout = open(os.devnull, 'w')
+    pass
 
 if not os.path.exists(BENCHMARK_FOLDER):
     os.makedirs(BENCHMARK_FOLDER)
@@ -101,8 +101,8 @@ def driver(manual_args):
         strategy = manual_args["strategy"]
 
 
-    print(f"(m,k,n) = ({m},{k},{n})")
-    print(f"strategy = {strategy.__name__}")
+    # print(f"(m,k,n) = ({m},{k},{n})")
+    # print(f"strategy = {strategy.__name__}")
 
 
     comm = MPI.COMM_WORLD
@@ -118,8 +118,8 @@ def driver(manual_args):
 
     standard_multiply = matrix_multiply(MATRIX_A, MATRIX_B, MATRIX_C)
 
-    if rank == 0:
-        print(f"A:\n{MATRIX_A}\nB:\n{MATRIX_B}\nC:\n{MATRIX_C}\nExpected:\n{standard_multiply}")
+    # if rank == 0:
+    #     print(f"A:\n{MATRIX_A}\nB:\n{MATRIX_B}\nC:\n{MATRIX_C}\nExpected:\n{standard_multiply}")
 
     A_I, B_I, C_I = [None] * 3
     # this does not accoutn for before the algorithm where all 3 matrices exist or when it finishes and the final matrix is gathered to a process
@@ -207,15 +207,18 @@ def main():
     # I am going to try and run on max 48 cpus? maybe more later
     # with 48 divisors are 1,2,4,6,8,12,16,24,48
     # dimensions = [48, 96, 144, 192, 240, 288, 336, 384, 432, 480, 528, 576, 624, 672] #, 720, 768, 816, 864, 912, 960, 1008, 1440] #, 1920, 2400, 2880, 3360, 3840, 4320, 4800, 5760, 7680, 8640, 9600, 12000, 14400, 16800, 19200, 21600, 24000, 31200, 48000, 60000] #, 72000, 84000, 96000, 120000]
-    dimensions = [48, 144, 240, 480, 720, 960, 2400, 4800, 9600, 12000, 14400, 16800, 19200, 24000, 28800, 33600, 36000, 38400, 40800, 43200, 45600, 48000]
-    # dimensions = [48, 240, 720]
+    # dimensions = [48, 144, 240, 480, 720, 960, 2400, 4800, 9600, 12000, 14400, 16800, 19200, 24000, 28800, 33600, 36000, 38400, 40800, 43200, 45600, 48000]
+    dimensions = [48, 240]#, 720]
     # dimensions = [4, 8, 12, 16]
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
+    rank = comm.Get_rank()
     if size == 1:
         EXPLODED_STRATEGIES.clear()
         EXPLODED_STRATEGIES.append(throughput_test)  # throughput is just testing one processor
     for algo in EXPLODED_STRATEGIES:
+        if rank == 0:
+            print(f"algorithm is {algo.__name__}", flush=True)
         for m in dimensions:
             for k in dimensions:
                 for n in dimensions:

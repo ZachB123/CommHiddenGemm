@@ -18,8 +18,8 @@ def allgather_A_col_no_compute(A_I, B_I, C_I):
     k = B_I.shape[0]
     n = C_I.shape[1] * size
 
-    if rank == 0:
-        print(f"calculated ({m},{k},{n})")
+    # if rank == 0:
+    #     print(f"calculated ({m},{k},{n})")
 
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
@@ -72,8 +72,8 @@ def allgather_A_row_no_compute(A_I, B_I, C_I):
     k = B_I.shape[0]
     n = C_I.shape[1] * size
 
-    if rank == 0:
-        print(f"calculated ({m},{k},{n})")
+    # if rank == 0:
+    #     print(f"calculated ({m},{k},{n})")
 
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
@@ -116,8 +116,8 @@ def allgather_B_col_no_compute(A_I, B_I, C_I):
     k = B_I.shape[0]
     n = C_I.shape[1]
 
-    if rank == 0:
-        print(f"calculated ({m},{k},{n})")
+    # if rank == 0:
+    #     print(f"calculated ({m},{k},{n})")
 
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
@@ -161,8 +161,8 @@ def allgather_B_row_no_compute(A_I, B_I, C_I):
     k = A_I.shape[1]
     n = C_I.shape[1]
 
-    if rank == 0:
-        print(f"calculated ({m},{k},{n})")
+    # if rank == 0:
+    #     print(f"calculated ({m},{k},{n})")
 
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
@@ -204,8 +204,8 @@ def reducescatter_C_col_no_compute(A_I, B_I, C_I):
     k = B_I.shape[0] * size
     n = B_I.shape[1]
 
-    if rank == 0:
-        print(f"calculated ({m},{k},{n})")
+    # if rank == 0:
+    #     print(f"calculated ({m},{k},{n})")
 
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
@@ -252,8 +252,8 @@ def reducescatter_C_row_no_compute(A_I, B_I, C_I):
     k = B_I.shape[0] * size
     n = C_I.shape[1]
 
-    if rank == 0:
-        print(f"calculated ({m},{k},{n})")
+    # if rank == 0:
+    #     print(f"calculated ({m},{k},{n})")
 
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
@@ -302,8 +302,8 @@ def broadcast_based_no_compute(A_I, B_I, C_I):
     k = A_I.shape[1]
     n = C_I.shape[1]
 
-    if rank == 0:
-        print(f"calculated ({m},{k},{n})")
+    # if rank == 0:
+    #     print(f"calculated ({m},{k},{n})")
         # print
 
     K = 0

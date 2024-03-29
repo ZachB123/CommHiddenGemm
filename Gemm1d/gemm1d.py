@@ -52,6 +52,7 @@ def allgather_A_col(A_I, B_I, C_I):
     shared_k_index = ((k // size) * (rank - 2 * size  + 1)) % k
     relevant_b_part = B_I[shared_k_index : shared_k_index + (k // size), :]
     C_I = C_I + np.matmul(A_I, relevant_b_part)
+    return
 
     # this provides an array for each like value
     gathered_result = comm.gather(C_I, root=0)
@@ -96,6 +97,7 @@ def allgather_A_row(A_I, B_I, C_I):
     local_matrix = np.matmul(A_I, B_I)
     shared_m_index = ((m // size) * (rank - 2 * size + 1)) % m
     C_I[shared_m_index : shared_m_index + (m // size),:] += local_matrix
+    return
 
     # this provides an array for each like value
     gathered_result = comm.gather(C_I, root=0)
@@ -142,6 +144,7 @@ def allgather_B_col(A_I, B_I, C_I):
     shared_n_index = ((n // size) * (rank - 2 * size + 1)) % n
     C_I[:, shared_n_index : shared_n_index + (n // size)] += local_matrix
 
+    return
     # this provides an array for each like value
     gathered_result = comm.gather(C_I, root=0)
     if rank == 0:
@@ -184,6 +187,7 @@ def allgather_B_row(A_I, B_I, C_I):
     shared_k_index = ((k // size) * (rank - 2 * size + 1)) % k
     relevant_a_part = A_I[:, shared_k_index : shared_k_index + (k // size)]
     C_I = C_I + np.matmul(relevant_a_part, B_I)
+    return
 
     # this provides an array for each like value
     gathered_result = comm.gather(C_I, root=0)
@@ -230,6 +234,7 @@ def reducescatter_C_col(A_I, B_I, C_I):
         MPI.Request.waitall([send_request, receive_request])
         C_I = Temp_C_I + buffer
 
+    return
 
     # this provides an array for each like value
     gathered_result = comm.gather(C_I, root=0)
@@ -279,6 +284,7 @@ def reducescatter_C_row(A_I, B_I, C_I):
         MPI.Request.waitall([send_request, receive_request])
         C_I = Temp_C_I + buffer
 
+    return
 
     # this provides an array for each like value
     gathered_result = comm.gather(C_I, root=0)
@@ -314,6 +320,7 @@ def broadcast_based(A_I, B_I, C_I):
         relevant_a_part = A_I[:, K * (k // size) : (K + 1) * (k // size)]
 
         C_I = C_I + np.matmul(relevant_a_part, Btmp)
+    return
 
     gathered_result = comm.gather(C_I, root=0)
     if rank == 0:
@@ -364,6 +371,7 @@ def broadcast_based_with_overlap(A_I, B_I, C_I):
     K = size
     relevant_a_part = A_I[:, (K - 1) * (k // size) : K * (k // size)]
     C_I = C_I + np.matmul(relevant_a_part, Btmp)
+    return
 
     gathered_result = comm.gather(C_I, root=0)
     if rank == 0:
@@ -374,6 +382,8 @@ def throughput_test(A_I, B_I, C_I):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     C_I = C_I + np.matmul(A_I, B_I)
+    return
+
     if rank == 0:
         return C_I
     return None

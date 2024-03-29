@@ -85,7 +85,22 @@ def split_matrix(matrix, axis, rank, size):
         return matrix[:, rank * (dimension_length // size) : (rank + 1) * (dimension_length // size)].copy()
     raise ValueError("Invalid Axis")
 
-def dump_unequal_matrices(file_name, MATRIX_A, MATRIX_B, MATRIX_C, expected, actual, other_info="", seed=None):
+def generate_local_matrix(m, n, axis, size, zeros=False):
+    # like split_matrix but we create the matrix here m,n would be the size of matrix
+    if axis == "r":
+        if zeros:
+            return np.zeros((m // size, n), dtype=MATRIX_DTYPE)
+        else:
+            return generate_matrix(m // size, n, -10, 10)
+    elif axis == "c":
+        if zeros:
+            return np.zeros((m, n // size), dtype=MATRIX_DTYPE)
+        else:
+            return generate_matrix(m, n // size, -10, 10)
+    raise ValueError("Invalid Axis")
+
+
+def dump_unequal_matrices(file_name, MATRIX_A, MATRIX_B, MATRIX_C, expected, actual, other_info=""):
     # we need to show like the entire true false grid and see where they like differ provide row col
     current_print_options = np.get_printoptions()
     np.set_printoptions(threshold=np.inf)#(max(MATRIX_A.shape[0],MATRIX_A.shape[1],MATRIX_B.shape[1]) + 1000))

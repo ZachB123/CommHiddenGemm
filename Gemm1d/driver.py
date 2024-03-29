@@ -32,7 +32,7 @@ NO_COMPUTE_STRATEGIES = [allgather_A_col_no_compute, allgather_A_row_no_compute,
                          reducescatter_C_col_no_compute, reducescatter_C_row_no_compute, broadcast_based_no_compute, broadcast_based_with_overlap_no_compute]
 
 EXPLODED_STRATEGIES = [item for sublist in STRATEGIES for item in sublist]
-NUM_REPEATS = 10
+NUM_REPEATS = 5
 
 # disregard all stdout
 if STOP_OUTPUT:
@@ -207,8 +207,8 @@ def main():
     # I am going to try and run on max 48 cpus? maybe more later
     # with 48 divisors are 1,2,4,6,8,12,16,24,48
     # dimensions = [48, 96, 144, 192, 240, 288, 336, 384, 432, 480, 528, 576, 624, 672] #, 720, 768, 816, 864, 912, 960, 1008, 1440] #, 1920, 2400, 2880, 3360, 3840, 4320, 4800, 5760, 7680, 8640, 9600, 12000, 14400, 16800, 19200, 21600, 24000, 31200, 48000, 60000] #, 72000, 84000, 96000, 120000]
-    # dimensions = [48, 144, 240, 480, 720, 960, 2400, 4800, 9600, 12000, 14400, 16800, 19200, 24000, 28800, 33600, 36000, 38400, 40800, 43200, 45600, 48000]
-    dimensions = [48, 240]#, 720]
+    dimensions = [480, 1200, 2400, 4800, 9600, 12000, 14400, 16800, 24000, 36000]
+    # dimensions = [48, 240]#, 720]
     # dimensions = [4, 8, 12, 16]
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
@@ -227,6 +227,8 @@ def main():
                     for _ in range(NUM_REPEATS):
                         np.random.seed(42) # reset the seed each time so we can go back and debug if needed
                         driver({"strategy": algo, "m": m, "k": k, "n":n})
+                gc.collect()
+
 
 if __name__ == "__main__":
     main()

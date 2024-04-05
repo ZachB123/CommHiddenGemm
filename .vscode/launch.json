@@ -16,7 +16,7 @@
             "name": "condense_csv",
             "type": "debugpy",
             "request": "launch",
-            "program": "Gemm1d/condense_csv.py",
+            "program": "Gemm1d/condense_csv_basic_benchmarks.py",
             "console": "integratedTerminal"
         }
     ]

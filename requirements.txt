@@ -1,5 +1,9 @@
 numpy
 pandas
-matplotlib
+matplotlib==3.5.0
 scipy
 mpi4py
+ipython
+jupyter
+ipympl
+ipywidgets==8.0.0b

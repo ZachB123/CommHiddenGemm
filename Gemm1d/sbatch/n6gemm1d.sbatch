@@ -14,8 +14,8 @@
 
 cd $SLURM_SUBMIT_DIR
 
-module load anaconda3
-module load py-mpi4py/3.1.2-mva2-rzdjbn
+# module load anaconda3
+module load anaconda3 py-mpi4py/3.1.2-mva2-rzdjbn gcc/10.3.0 mvapich2/2.3.6
 
 
 srun python driver.py

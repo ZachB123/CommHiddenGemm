@@ -42,7 +42,7 @@ while send_buffer_size <= 2**max_send:
     if rank == 0:
         with open(f"{BENCHMARK_FOLDER}/python-n{size}-broadcastbenchmark.csv", mode="a", newline='') as file:
             writer = csv.writer(file)
-            writer.writerow([send_buffer_size, elapsed_time])
+            writer.writerow([size, send_buffer_size, elapsed_time])
 
     iterations += 1
     if iterations >= 10:

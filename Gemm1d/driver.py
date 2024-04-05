@@ -235,6 +235,7 @@ def main():
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
+    EXPLODED_STRATEGIES.remove(throughput_test)
     if size == 1:
         EXPLODED_STRATEGIES.clear()
         EXPLODED_STRATEGIES.append(throughput_test)  # throughput is just testing one processor

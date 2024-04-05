@@ -1,6 +1,7 @@
 {
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Algorithm2",
             "type": "debugpy",
@@ -9,6 +10,13 @@
             "args": ["-m", "8", "-k", "8", "-n", "8", "-s", "algorithm2"],
             "mpiexec": "path/to/mpiexec",
             "mpiexec_args": ["-n", "4"],  // Number of MPI processes
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "condense_csv",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "Gemm1d/condense_csv.py",
             "console": "integratedTerminal"
         }
     ]

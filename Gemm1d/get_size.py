@@ -2,11 +2,14 @@ from mpi4py import MPI
 import threading
 import os
 import time
+
 # this file is just for running on the super computer so that I can verify that the number
 # of processors is what I think it is
 
+
 def mythread():
     time.sleep(1000)
+
 
 def main():
     comm = MPI.COMM_WORLD
@@ -23,6 +26,7 @@ def main():
     #     except RuntimeError:    #too many throws a RuntimeError
     #         break
     # print("{} threads created.\n".format(threads))
+
 
 if __name__ == "__main__":
     main()

@@ -38,9 +38,13 @@ while send_buffer_size <= 2**max_send:
 
     comm.Barrier()
     elapsed_time = MPI.Wtime() - start_time
-    
+
     if rank == 0:
-        with open(f"{BENCHMARK_FOLDER}/python-n{size}-broadcastbenchmark.csv", mode="a", newline='') as file:
+        with open(
+            f"{BENCHMARK_FOLDER}/python-n{size}-broadcastbenchmark.csv",
+            mode="a",
+            newline="",
+        ) as file:
             writer = csv.writer(file)
             writer.writerow([size, send_buffer_size, elapsed_time])
 

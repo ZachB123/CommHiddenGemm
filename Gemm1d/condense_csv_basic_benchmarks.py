@@ -21,17 +21,22 @@ for filename in files:
     # format is: algorithm, processors, m, k, n, throughput, time, memory
 
     # this assumes the same trials are next to each other in the csv
-    with open(f"{input_folder}/{filename}", "r", newline='') as file:
+    with open(f"{input_folder}/{filename}", "r", newline="") as file:
         reader = csv.reader(file)
         for row in reader:
             key = tuple(row[:2])  # First 2 are the inputs
             if key not in data:
-                data[key] = {"count": 1, "data": [[float(x) for x in row[2:]]]}  # Convert remaining columns to floats
+                data[key] = {
+                    "count": 1,
+                    "data": [[float(x) for x in row[2:]]],
+                }  # Convert remaining columns to floats
             else:
                 data[key]["count"] = data[key]["count"] + 1
-                data[key]["data"].append([float(row[i+2]) for i in range(len(row[2:]))])
+                data[key]["data"].append(
+                    [float(row[i + 2]) for i in range(len(row[2:]))]
+                )
 
-    with open(f"{output_folder}/{filename}", 'w', newline='') as csvfile:
+    with open(f"{output_folder}/{filename}", "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
         for key, values in data.items():
             curr_data = values["data"][0]

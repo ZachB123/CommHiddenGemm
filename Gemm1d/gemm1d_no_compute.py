@@ -6,6 +6,7 @@ from util import MATRIX_DTYPE
 
 # this file is copied from gemm1d.py but with the computation part removed
 
+
 def allgather_A_col_no_compute(A_I, B_I, C_I):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -24,12 +25,13 @@ def allgather_A_col_no_compute(A_I, B_I, C_I):
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
 
-
     for cycle in range(size - 1):
 
         # buffer has n rows and k/size columns
-        buffer = np.empty((m, k // size), dtype=MATRIX_DTYPE) 
-        send_request = comm.Isend(np.ascontiguousarray(A_I), next_rank, 0) # no Isendrecv?
+        buffer = np.empty((m, k // size), dtype=MATRIX_DTYPE)
+        send_request = comm.Isend(
+            np.ascontiguousarray(A_I), next_rank, 0
+        )  # no Isendrecv?
         receive_request = comm.Irecv(buffer, prev_rank, MPI.ANY_TAG)
 
         # old implementation
@@ -44,10 +46,8 @@ def allgather_A_col_no_compute(A_I, B_I, C_I):
         # relevant_b_part = B_I[shared_k_index : shared_k_index + (k // size), :]
         # C_I = C_I + np.matmul(A_I, relevant_b_part)
 
-
         MPI.Request.waitall([send_request, receive_request])
         A_I = buffer
-
 
     # I have no idea why 2 * size + 1 works here
     # shared_k_index = ((k // size) * (rank - 2 * size  + 1)) % k
@@ -60,6 +60,7 @@ def allgather_A_col_no_compute(A_I, B_I, C_I):
     if rank == 0:
         return np.concatenate(gathered_result, axis=1)
     return None
+
 
 def allgather_A_row_no_compute(A_I, B_I, C_I):
     comm = MPI.COMM_WORLD
@@ -79,13 +80,13 @@ def allgather_A_row_no_compute(A_I, B_I, C_I):
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
 
-    
-
     for cycle in range(size - 1):
 
         # buffer has m / sizes rows and k columns
-        buffer = np.empty((m // size, k), dtype=MATRIX_DTYPE) 
-        send_request = comm.Isend(np.ascontiguousarray(A_I), next_rank, 0) # no Isendrecv?
+        buffer = np.empty((m // size, k), dtype=MATRIX_DTYPE)
+        send_request = comm.Isend(
+            np.ascontiguousarray(A_I), next_rank, 0
+        )  # no Isendrecv?
         receive_request = comm.Irecv(buffer, prev_rank, MPI.ANY_TAG)
 
         # local_matrix = np.matmul(A_I, B_I)
@@ -105,7 +106,8 @@ def allgather_A_row_no_compute(A_I, B_I, C_I):
     if rank == 0:
         return np.concatenate(gathered_result, axis=1)
     return None
-    
+
+
 def allgather_B_col_no_compute(A_I, B_I, C_I):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -123,14 +125,15 @@ def allgather_B_col_no_compute(A_I, B_I, C_I):
 
     prev_rank = (rank + size - 1) % size
     next_rank = (rank + 1) % size
-    
 
     for cycle in range(size - 1):
 
         # buffer has k rows and n // size columns
-        buffer = np.empty((k, n // size), dtype=MATRIX_DTYPE) 
+        buffer = np.empty((k, n // size), dtype=MATRIX_DTYPE)
 
-        send_request = comm.Isend(np.ascontiguousarray(B_I), next_rank, 0) # no Isendrecv?
+        send_request = comm.Isend(
+            np.ascontiguousarray(B_I), next_rank, 0
+        )  # no Isendrecv?
         receive_request = comm.Irecv(buffer, prev_rank, MPI.ANY_TAG)
 
         # local_matrix = np.matmul(A_I, B_I)
@@ -139,7 +142,6 @@ def allgather_B_col_no_compute(A_I, B_I, C_I):
 
         MPI.Request.waitall([send_request, receive_request])
         B_I = buffer
-
 
     # local_matrix = np.matmul(A_I, B_I)
     # shared_n_index = ((n // size) * (rank - 2 * size + 1)) % n
@@ -151,6 +153,7 @@ def allgather_B_col_no_compute(A_I, B_I, C_I):
     if rank == 0:
         return np.concatenate(gathered_result, axis=0)
     return None
+
 
 def allgather_B_row_no_compute(A_I, B_I, C_I):
     comm = MPI.COMM_WORLD
@@ -175,9 +178,11 @@ def allgather_B_row_no_compute(A_I, B_I, C_I):
         # buffer has k / size rows and n columns
         buffer = np.empty((k // size, n), dtype=MATRIX_DTYPE)
 
-        send_request = comm.Isend(np.ascontiguousarray(B_I), next_rank, 0) # no Isendrecv?
+        send_request = comm.Isend(
+            np.ascontiguousarray(B_I), next_rank, 0
+        )  # no Isendrecv?
         receive_request = comm.Irecv(buffer, prev_rank, MPI.ANY_TAG)
-        
+
         # shared_k_index = ((k // size) * (rank - cycle)) % k
         # relevant_a_part = A_I[:, shared_k_index : shared_k_index + (k // size)]
         # C_I = C_I + np.matmul(relevant_a_part, B_I)
@@ -195,6 +200,7 @@ def allgather_B_row_no_compute(A_I, B_I, C_I):
     if rank == 0:
         return np.concatenate(gathered_result, axis=0)
     return None
+
 
 def reducescatter_C_col_no_compute(A_I, B_I, C_I):
     comm = MPI.COMM_WORLD
@@ -219,17 +225,19 @@ def reducescatter_C_col_no_compute(A_I, B_I, C_I):
     # initial_relevant_b_part = B_I[:, initial_shared_n_index : initial_shared_n_index + (n // size)]
     # C_I = C_I + np.matmul(A_I, initial_relevant_b_part)
 
-    buffer = np.empty((m, n // size), dtype=MATRIX_DTYPE) 
+    buffer = np.empty((m, n // size), dtype=MATRIX_DTYPE)
 
     for cycle in range(1, size):
 
         # buffer has m rows and n / size columns
-        send_request = comm.Isend(np.ascontiguousarray(C_I), next_rank, 0) # no Isendrecv?
+        send_request = comm.Isend(
+            np.ascontiguousarray(C_I), next_rank, 0
+        )  # no Isendrecv?
         receive_request = comm.Irecv(buffer, prev_rank, MPI.ANY_TAG)
-        
+
         # shared_n_index = ((n // size) * (rank - cycle)) % n
         # relevant_b_part = B_I[:, shared_n_index : shared_n_index + (n // size)]
-        
+
         # Temp_C_I = np.matmul(A_I, relevant_b_part)
 
         MPI.Request.waitall([send_request, receive_request])
@@ -244,6 +252,7 @@ def reducescatter_C_col_no_compute(A_I, B_I, C_I):
         gathered_result = gathered_result[-1:] + gathered_result[:-1]
         return np.concatenate(gathered_result, axis=1)
     return None
+
 
 def reducescatter_C_row_no_compute(A_I, B_I, C_I):
     comm = MPI.COMM_WORLD
@@ -266,20 +275,24 @@ def reducescatter_C_row_no_compute(A_I, B_I, C_I):
     # have a computation done so we are ready to send something
     # initial_shared_m_index = ((m // size) * (rank)) % m
     # initial_relevant_a_part = A_I[initial_shared_m_index : initial_shared_m_index + (m // size), :]
-        
+
     # C_I = C_I + np.matmul(initial_relevant_a_part, B_I)
 
-    buffer = np.empty((m // size, n), dtype=MATRIX_DTYPE) # try moving this outside the loop at somepoint 
+    buffer = np.empty(
+        (m // size, n), dtype=MATRIX_DTYPE
+    )  # try moving this outside the loop at somepoint
 
     for cycle in range(1, size):
 
         # buffer has m / size rows and n columns
-        send_request = comm.Isend(np.ascontiguousarray(C_I), next_rank, 0) # no Isendrecv?
+        send_request = comm.Isend(
+            np.ascontiguousarray(C_I), next_rank, 0
+        )  # no Isendrecv?
         receive_request = comm.Irecv(buffer, prev_rank, MPI.ANY_TAG)
-        
+
         # shared_m_index = ((m // size) * (rank - cycle)) % m
         # relevant_a_part = A_I[shared_m_index : shared_m_index + (m // size), :]
-        
+
         # Temp_C_I = np.matmul(relevant_a_part, B_I)
 
         MPI.Request.waitall([send_request, receive_request])
@@ -294,6 +307,7 @@ def reducescatter_C_row_no_compute(A_I, B_I, C_I):
         gathered_result = gathered_result[-1:] + gathered_result[:-1]
         return np.concatenate(gathered_result, axis=0)
     return None
+
 
 def broadcast_based_no_compute(A_I, B_I, C_I):
     # all matrices split by rows
@@ -310,7 +324,7 @@ def broadcast_based_no_compute(A_I, B_I, C_I):
 
     # if rank == 0:
     #     print(f"calculated ({m},{k},{n})")
-        # print
+    # print
 
     K = 0
     for K in range(size):
@@ -325,6 +339,7 @@ def broadcast_based_no_compute(A_I, B_I, C_I):
     if rank == 0:
         return np.concatenate(gathered_result, axis=0)
     return None
+
 
 # broadcast based with overlap
 def broadcast_based_with_overlap_no_compute(A_I, B_I, C_I):
@@ -362,10 +377,8 @@ def broadcast_based_with_overlap_no_compute(A_I, B_I, C_I):
 
         status = MPI.Status()
         bcast_request.Wait(status=status)
-        comm.Barrier() # THE CODE WILL RANDOMLY FAIL LIKE 10% OF THE TIME WITHOUT THIS LINE
+        comm.Barrier()  # THE CODE WILL RANDOMLY FAIL LIKE 10% OF THE TIME WITHOUT THIS LINE
         Btmp = Bnext
-
-    
 
     K = size
     # relevant_a_part = A_I[:, (K - 1) * (k // size) : K * (k // size)]

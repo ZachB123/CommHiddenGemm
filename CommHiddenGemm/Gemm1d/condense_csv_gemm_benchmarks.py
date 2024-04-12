@@ -45,6 +45,3 @@ for filename in files:
             for i in range(len(curr_data)):
                 curr_data[i] = curr_data[i] / values["count"]
             writer.writerow(list(key) + curr_data)
-
-# todo figure out multiple nodes, weak and strong scaling, summa, 2d chg
-# https://gitlab.karlin.mff.cuni.cz/fara/parallel-multiplication/-/blob/master/MATMAT_multi.py

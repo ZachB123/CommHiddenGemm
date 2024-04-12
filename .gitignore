@@ -5,3 +5,4 @@ benchmark.csv
 *.csv
 .ipynb_checkpoints/
 benchmarks/
+notes.txt

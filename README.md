@@ -2,6 +2,7 @@
 
 ## Installation
 - pip install -r requirements.txt
+- pip install -e .
 
 ## GEMM1d
 - NOTE: The number of processes must be greater than 1 and divide m,n,k equally

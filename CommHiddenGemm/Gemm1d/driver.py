@@ -8,7 +8,7 @@ import argparse
 
 # import psutil # for checking memory usage
 import gc  # garbage collection
-from util import (
+from CommHiddenGemm.Util.util import (
     MATRIX_DTYPE,
     BENCHMARK_FILE,
     generate_matrix,

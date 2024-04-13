@@ -1,4 +1,4 @@
-EXECS=gemm1d sendbenchmark broadcastbenchmark
+EXECS=gemm1d pingpong broadcastbenchmark
 
 MPICC?=mpicc
 
@@ -10,8 +10,8 @@ gemm1d: gemm1d.c
 debug: gemm1d.c
 	${MPICC} -g -o gemm1d gemm1d.c
 
-sendbenchmark: send_benchmark.c
-	${MPICC} -pedantic -o sendbenchmark send_benchmark.c
+pingpong: pingpong.c
+	${MPICC} -pedantic -o pingpong pingpong.c
 
 broadcastbenchmark: broadcast_benchmark.c
 	${MPICC} -pedantic -o broadcastbenchmark broadcast_benchmark.c

@@ -7,12 +7,6 @@ import time
 # of processors is what I think it is
 
 
-def janky_print(*args):
-    # this print janky so don't like go crazy
-    output = ", ".join([f"{name}: {value}" for name, value in zip(args, map(lambda x: globals()[x], args))])
-    print(output)
-
-
 def mythread():
     time.sleep(1000)
 
@@ -26,11 +20,12 @@ def main():
     version = MPI.Get_version()
     library_version = MPI.Get_library_version()
 
-    print(f"Rank: {rank}, size: {size}, hostname: {hostname}, version: {version}, CPUS: {cpus}")
+    print(
+        f"Rank: {rank}, size: {size}, hostname: {hostname}, version: {version}, CPUS: {cpus}"
+    )
     if rank == 0:
         print(f"library version: {library_version}")
     # print(f"CPUS: {os.cpu_count()}")
-
 
 
 if __name__ == "__main__":

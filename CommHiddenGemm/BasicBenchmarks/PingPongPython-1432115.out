@@ -1,0 +1,44 @@
+---------------------------------------
+Begin Slurm Prolog: Apr-13-2024 23:37:18
+Job ID:    1432115
+User ID:   zbuchholz3
+Account:   hive-rvuduc3
+Job name:  PingPongPython
+Partition: hive
+---------------------------------------
+Started on atl1-1-01-017-32-1.pace.gatech.edu
+[atl1-1-01-017-32-1.pace.gatech.edu:mpi_rank_0][MPID_Init] [Performance Suggestion]: Application has requested for multi-thread capability. If allocating memory from different pthreads/OpenMP threads, please consider setting MV2_USE_ALIGNED_ALLOC=1 for improved performance.
+Use MV2_USE_THREAD_WARNING=0 to suppress this error message.
+Max send is 2**31
+Traceback (most recent call last):
+  File "/storage/home/hhive1/zbuchholz3/CommHiddenGemm/CommHiddenGemm/BasicBenchmarks/pingpong.py", line 44, in <module>
+    recieve_request = comm.Irecv(buffer, source=0, tag=MPI.ANY_TAG)
+  File "mpi4py/MPI/Comm.pyx", line 394, in mpi4py.MPI.Comm.Irecv
+  File "mpi4py/MPI/msgbuffer.pxi", line 454, in mpi4py.MPI.message_p2p_recv
+  File "mpi4py/MPI/msgbuffer.pxi", line 440, in mpi4py.MPI._p_msg_p2p.for_recv
+  File "mpi4py/MPI/msgbuffer.pxi", line 250, in mpi4py.MPI.message_simple
+  File "mpi4py/MPI/msgbuffer.pxi", line 50, in mpi4py.MPI.downcast
+OverflowError: integer 2147483648 does not fit in 'int'
+Max send is 2**31
+Traceback (most recent call last):
+  File "/storage/home/hhive1/zbuchholz3/CommHiddenGemm/CommHiddenGemm/BasicBenchmarks/pingpong.py", line 39, in <module>
+    send_request = comm.Isend(np.ascontiguousarray(data), dest=1, tag=0)
+  File "mpi4py/MPI/Comm.pyx", line 377, in mpi4py.MPI.Comm.Isend
+  File "mpi4py/MPI/msgbuffer.pxi", line 449, in mpi4py.MPI.message_p2p_send
+  File "mpi4py/MPI/msgbuffer.pxi", line 432, in mpi4py.MPI._p_msg_p2p.for_send
+  File "mpi4py/MPI/msgbuffer.pxi", line 250, in mpi4py.MPI.message_simple
+  File "mpi4py/MPI/msgbuffer.pxi", line 50, in mpi4py.MPI.downcast
+OverflowError: integer 2147483648 does not fit in 'int'
+srun: error: atl1-1-01-017-32-1: tasks 0-1: Exited with exit code 1
+---------------------------------------
+Begin Slurm Epilog: Apr-14-2024 00:04:46
+Job ID:        1432115
+Array Job ID:  _4294967294
+User ID:       zbuchholz3
+Account:       hive-rvuduc3
+Job name:      PingPongPython
+Resources:     cpu=2,mem=182808M,node=1
+Rsrc Used:     cput=00:54:58,vmem=5640K,walltime=00:27:29,mem=5220K,energy_used=0
+Partition:     hive
+Nodes:         atl1-1-01-017-32-1
+---------------------------------------

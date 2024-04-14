@@ -1,0 +1,21 @@
+---------------------------------------
+Begin Slurm Prolog: Apr-13-2024 23:45:17
+Job ID:    1432125
+User ID:   zbuchholz3
+Account:   hive-rvuduc3
+Job name:  Broadcast48Python
+Partition: hive
+---------------------------------------
+Started on atl1-1-01-015-14-1.pace.gatech.edu
+WARNING: Error in initializing MVAPICH2 ptmalloc library.Continuing without InfiniBand registration cache support.
+[atl1-1-01-015-14-1.pace.gatech.edu:mpi_rank_0][MPID_Init] [Performance Suggestion]: Application has requested for multi-thread capability. If allocating memory from different pthreads/OpenMP threads, please consider setting MV2_USE_ALIGNED_ALLOC=1 for improved performance.
+Use MV2_USE_THREAD_WARNING=0 to suppress this error message.
+Max send is 2**30
+Traceback (most recent call last):
+  File "/storage/home/hhive1/zbuchholz3/CommHiddenGemm/CommHiddenGemm/BasicBenchmarks/broadcast_benchmark.py", line 34, in <module>
+    received_data = comm.bcast(data, 0)
+  File "mpi4py/MPI/Comm.pyx", line 1569, in mpi4py.MPI.Comm.bcast
+  File "mpi4py/MPI/msgpickle.pxi", line 721, in mpi4py.MPI.PyMPI_bcast
+  File "mpi4py/MPI/msgpickle.pxi", line 147, in mpi4py.MPI.pickle_dump
+  File "mpi4py/MPI/msgbuffer.pxi", line 50, in mpi4py.MPI.downcast
+OverflowError: integer 2147483786 does not fit in 'int'

@@ -1,0 +1,32 @@
+---------------------------------------
+Begin Slurm Prolog: Apr-14-2024 00:00:38
+Job ID:    1432131
+User ID:   zbuchholz3
+Account:   hive-rvuduc3
+Job name:  Broadcast10C
+Partition: hive
+---------------------------------------
+Started on atl1-1-01-013-3-2.pace.gatech.edu
+make: Nothing to be done for `all'.
+Max send is 2**30
+Max send is 2**30
+Max send is 2**30
+Max send is 2**30
+Max send is 2**30
+Max send is 2**30
+Max send is 2**30
+Max send is 2**30
+Max send is 2**30
+Max send is 2**30
+---------------------------------------
+Begin Slurm Epilog: Apr-14-2024 00:13:15
+Job ID:        1432131
+Array Job ID:  _4294967294
+User ID:       zbuchholz3
+Account:       hive-rvuduc3
+Job name:      Broadcast10C
+Resources:     cpu=10,mem=182808M,node=1
+Rsrc Used:     cput=02:06:10,vmem=4700K,walltime=00:12:37,mem=4684K,energy_used=0
+Partition:     hive
+Nodes:         atl1-1-01-013-3-2
+---------------------------------------

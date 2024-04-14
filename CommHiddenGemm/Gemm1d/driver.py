@@ -69,7 +69,7 @@ NO_COMPUTE_STRATEGIES = [
 ]
 
 EXPLODED_STRATEGIES = [item for sublist in STRATEGIES for item in sublist]
-NUM_REPEATS = 3
+NUM_REPEATS = 7
 
 # disregard all stdout
 if STOP_OUTPUT:
@@ -253,8 +253,8 @@ def driver(manual_args):
         B_I = generate_matrix(k, n, -10, 10)
         C_I = generate_matrix(m, n, -10, 10)
         expected_max_memory_per_proc_GB = (
-            sys.getsizeof(A_I) + sys.getsizeof(B_I) + sys.getsizeof(C_I)
-        )
+            (sys.getsizeof(A_I) + sys.getsizeof(B_I) + sys.getsizeof(C_I))
+        ) / (1024**3)
 
     # if rank == 0 and not STOP_OUTPUT:
     #     pid = os.getpid()
@@ -285,7 +285,7 @@ def driver(manual_args):
             )
         else:
             with open(
-                f"{BENCHMARK_FOLDER}/nocheck-n{size}-{BENCHMARK_FILE}",
+                f"{BENCHMARK_FOLDER}/n{size}-{BENCHMARK_FILE}",
                 mode="a",
                 newline="",
             ) as file:
@@ -324,7 +324,8 @@ def main():
     # with 48 divisors are 1,2,4,6,8,12,16,24,48
     # dimensions = [48, 96, 144, 192, 240, 288, 336, 384, 432, 480, 528, 576, 624, 672] #, 720, 768, 816, 864, 912, 960, 1008, 1440] #, 1920, 2400, 2880, 3360, 3840, 4320, 4800, 5760, 7680, 8640, 9600, 12000, 14400, 16800, 19200, 21600, 24000, 31200, 48000, 60000] #, 72000, 84000, 96000, 120000]
     # dimensions = [480, 1200, 2400, 4800, 9600, 12000, 14400, 16800, 24000, 36000]
-    dimensions = [1200, 2400, 4800, 9600, 12000, 18000]
+    # dimensions = [1200, 2400, 4800, 9600, 12000, 18000, 24000]
+    dimensions = [1440, 2880, 4320, 7200, 10080, 14400, 18720, 24480]
     # dimensions = [48, 240]#, 720]
     # dimensions = [4, 8, 12, 16]
     comm = MPI.COMM_WORLD

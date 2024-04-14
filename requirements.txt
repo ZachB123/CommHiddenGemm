@@ -7,3 +7,4 @@ ipython
 jupyter
 ipympl
 ipywidgets==8.0.0b
+setuptools

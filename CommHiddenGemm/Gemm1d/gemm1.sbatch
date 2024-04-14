@@ -14,4 +14,7 @@ echo "Started on `/bin/hostname`"  # prints the name of the node job started on
 
 module load anaconda3 py-mpi4py/3.1.2-mva2-rzdjbn
 
+pip install -r ../../requirements.txt
+pip install -e ../..
+
 srun python driver.py

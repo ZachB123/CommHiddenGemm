@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='CommHiddenGemm',
-    version='0.1',
+    name="CommHiddenGemm",
+    version="0.1",
     packages=find_packages(),
 )

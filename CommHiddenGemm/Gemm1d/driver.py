@@ -337,6 +337,14 @@ def main():
         EXPLODED_STRATEGIES.append(
             throughput_test
         )  # throughput is just testing one processor
+    # n2 starts at allgather_B_col_no_compute - adjust time on the sbatch
+    # n4 starts at reducescatter_C_row
+    # n6 starts at broadcast_based_with_overlap
+    # 5 10 14
+    if rank == 0:
+        for val in EXPLODED_STRATEGIES[5:]:
+            print(f"{val.__name__}")
+    return
     for algo in EXPLODED_STRATEGIES:
         if rank == 0:
             print(f"algorithm is {algo.__name__}", flush=True)

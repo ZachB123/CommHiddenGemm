@@ -46,16 +46,27 @@ logging.basicConfig(level=logging.DEBUG)  # nothing is 51
 STOP_OUTPUT = False
 BENCHMARK_FOLDER = "benchmarks"
 DEFAULT_STRATEGY = allgather_A_col
-STRATEGIES = [
-    (allgather_A_col, allgather_A_col_no_compute),
-    (allgather_A_row, allgather_A_row_no_compute),
-    (allgather_B_col, allgather_B_col_no_compute),
-    (allgather_B_row, allgather_B_row_no_compute),
-    (reducescatter_C_col, reducescatter_C_col_no_compute),
-    (reducescatter_C_row, reducescatter_C_row_no_compute),
-    (broadcast_based, broadcast_based_no_compute),
-    (broadcast_based_with_overlap, broadcast_based_with_overlap_no_compute),
-    (throughput_test,),
+# STRATEGIES = [
+#     (allgather_A_col, allgather_A_col_no_compute),
+#     (allgather_A_row, allgather_A_row_no_compute),
+#     (allgather_B_col, allgather_B_col_no_compute),
+#     (allgather_B_row, allgather_B_row_no_compute),
+#     (reducescatter_C_col, reducescatter_C_col_no_compute),
+#     (reducescatter_C_row, reducescatter_C_row_no_compute),
+#     (broadcast_based, broadcast_based_no_compute),
+#     (broadcast_based_with_overlap, broadcast_based_with_overlap_no_compute),
+#     (throughput_test,),
+# ]
+COMPUTE_STRATEGIES = [
+    allgather_A_col,
+    allgather_A_row,
+    allgather_B_col,
+    allgather_B_row,
+    reducescatter_C_col,
+    reducescatter_C_row,
+    broadcast_based,
+    broadcast_based_with_overlap,
+    throughput_test,
 ]
 NO_COMPUTE_STRATEGIES = [
     allgather_A_col_no_compute,
@@ -68,13 +79,10 @@ NO_COMPUTE_STRATEGIES = [
     broadcast_based_with_overlap_no_compute,
 ]
 
-EXPLODED_STRATEGIES = [item for sublist in STRATEGIES for item in sublist]
+# EXPLODED_STRATEGIES = [item for sublist in STRATEGIES for item in sublist]
+EXPLODED_STRATEGIES = COMPUTE_STRATEGIES + NO_COMPUTE_STRATEGIES
 NUM_REPEATS = 7
 
-# disregard all stdout
-if STOP_OUTPUT:
-    # sys.stdout = open(os.devnull, 'w')
-    pass
 
 if not os.path.exists(BENCHMARK_FOLDER):
     os.makedirs(BENCHMARK_FOLDER)
@@ -96,12 +104,14 @@ def parse_command_line_args():
         default=None,
     )
     parser.add_argument("-nc", "--no-compute", dest="no_compute", action="store_true")
+    parser.add_argument("-ntasks-per-node", dest="ntpn", default=-1, type=int, action="store_true")
     args = parser.parse_args()
 
     m = args.m
     k = args.k
     n = args.n
     strategy = args.strategy
+    ntpn = args.ntpn
 
     if all(elem is None for elem in [m, k, n]):
         # all elements are none so set to default value
@@ -142,7 +152,7 @@ def parse_command_line_args():
     if not all([m, k, n]):
         parser.error("If you specify any dimension, you must specify all of them.")
 
-    return (m, k, n, strategy)
+    return (m, k, n, strategy, ntpn)
 
 
 def driver(manual_args):
@@ -153,6 +163,7 @@ def driver(manual_args):
         k = manual_args["k"]
         n = manual_args["n"]
         strategy = manual_args["strategy"]
+        ntpm = manual_args["ntpm"]
 
     # print(f"(m,k,n) = ({m},{k},{n})")
     # print(f"strategy = {strategy.__name__}")
@@ -285,7 +296,7 @@ def driver(manual_args):
             )
         else:
             with open(
-                f"{BENCHMARK_FOLDER}/n{size}-{BENCHMARK_FILE}",
+                f"{BENCHMARK_FOLDER}/N{size}-n{ntpm}-{BENCHMARK_FILE}",
                 mode="a",
                 newline="",
             ) as file:
@@ -317,9 +328,12 @@ def driver(manual_args):
 
 
 def main():
-    if len(sys.argv) != 1:
+    if len(sys.argv) > 2:
         driver(None)
         return
+    ntasks_per_node = -1
+    if len(sys.argv) == 2:
+        ntasks_per_node = int(sys.argv[1])
     # I am going to try and run on max 48 cpus? maybe more later
     # with 48 divisors are 1,2,4,6,8,12,16,24,48
     # dimensions = [48, 96, 144, 192, 240, 288, 336, 384, 432, 480, 528, 576, 624, 672] #, 720, 768, 816, 864, 912, 960, 1008, 1440] #, 1920, 2400, 2880, 3360, 3840, 4320, 4800, 5760, 7680, 8640, 9600, 12000, 14400, 16800, 19200, 21600, 24000, 31200, 48000, 60000] #, 72000, 84000, 96000, 120000]
@@ -342,9 +356,8 @@ def main():
     # n6 starts at broadcast_based_with_overlap
     # 5 10 14
     if rank == 0:
-        for val in EXPLODED_STRATEGIES[5:]:
+        for val in EXPLODED_STRATEGIES:
             print(f"{val.__name__}")
-    return
     for algo in EXPLODED_STRATEGIES:
         if rank == 0:
             print(f"algorithm is {algo.__name__}", flush=True)
@@ -357,7 +370,7 @@ def main():
                         np.random.seed(
                             42
                         )  # reset the seed each time so we can go back and debug if needed
-                        driver({"strategy": algo, "m": m, "k": k, "n": n})
+                        driver({"strategy": algo, "m": m, "k": k, "n": n, "ntpm": ntasks_per_node})
                 gc.collect()
 
 

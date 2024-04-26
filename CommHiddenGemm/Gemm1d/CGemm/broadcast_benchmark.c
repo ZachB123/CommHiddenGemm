@@ -8,9 +8,13 @@
 
 int main(int argc, char *argv[]) {
     int max_send = 30;
+    int num_cores_per_node = -1;
 
-    if (argc == 2) {
+    if (argc >= 2) {
         max_send = atoi(argv[1]);
+    }
+    if (argc == 3) {
+        num_cores_per_node = atoi(argv[2]);
     }
 
     printf("Max send is 2**%d\n", max_send);
@@ -30,7 +34,16 @@ int main(int argc, char *argv[]) {
     while (send_buffer_size <= (1 << max_send)) {
         for (int  _ = 0; _ < NUM_TRIALS; _++) {
             double* data = malloc(send_buffer_size * sizeof(double));
+            if (data == NULL) {
+                printf("MALLOC FAILURE");
+                MPI_Abort(MPI_COMM_WORLD, 1);
+            }
             double* buffer = malloc(send_buffer_size * sizeof(double));
+            if (buffer == NULL) {
+                free(data);
+                printf("MALLOC FAILURE");
+                MPI_Abort(MPI_COMM_WORLD, 1);
+            }
 
             double start_time = MPI_Wtime();
 
@@ -40,11 +53,13 @@ int main(int argc, char *argv[]) {
 
             // Write benchmark data to file from rank 0
             if (rank == 0) {
-                char filename[100];
-                sprintf(filename, "../../BasicBenchmarks/basic-benchmarks/c-n%d-broadcastbenchmark.csv", size);
+                char filename[150];
+                sprintf(filename, "../../BasicBenchmarks/basic-benchmarks/c-N%d-n%d-broadcastbenchmark.csv", size, num_cores_per_node);
 
                 FILE *file = fopen(filename, "a");
                 if (file == NULL) {
+                    free(data);
+                    free(buffer);
                     printf("ERROR OPENING FILE\n");
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }

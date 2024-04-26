@@ -37,7 +37,7 @@ def write_sbatch(
 
 def write_gemm():
     for nodes in GEMM_NODES:
-        time = "6-00:00:00"
+        time = "5-00:00:00"
         if nodes > 8:
             time = "96:00:00"
             if nodes > 32:
@@ -57,7 +57,7 @@ def write_gemm():
                 'echo "Started on `/bin/hostname`"',
                 "module load anaconda3 py-mpi4py/3.1.2-mva2-rzdjbn",
                 "pip install -r ../../requirements.txt",
-                "srun python driver.py",
+                f"srun python driver.py {ntasks}",
             )
 
 
@@ -75,7 +75,7 @@ def write_pingpong_benchmarks():
         0,
         'echo "Started on `/bin/hostname`"',
         "module load anaconda3 py-mpi4py/3.1.2-mva2-rzdjbn",
-        "srun python pingpong.py 31"
+        "srun python pingpong.py 31 1"
     )
     write_sbatch(
         f"c_pingpong", #path
@@ -90,7 +90,7 @@ def write_pingpong_benchmarks():
         0,
         'echo "Started on `/bin/hostname`"',
         "make",
-        "srun ./pingpong"
+        "srun ./pingpong 31 1"
     )
 
 
@@ -100,9 +100,9 @@ def write_broadcast_benchmarks():
         for ntasks in [1, 2]:
             for program in ["python", "c"]:
                 if program == "python":
-                    build = ["module load anaconda3 py-mpi4py/3.1.2-mva2-rzdjbn", "srun python broadcast_benchmark.py"]
+                    build = ["module load anaconda3 py-mpi4py/3.1.2-mva2-rzdjbn", f"srun python broadcast_benchmark.py 31 {ntasks}"]
                 else:
-                    build = ["make", "srun ./broadcastbenchmark"]
+                    build = ["make", f"srun ./broadcastbenchmark 31 {ntasks}"]
                 write_sbatch(
                     f"{program}-broadcast-N{nodes}-n{ntasks}", #path
                     f"{program}-broadcast-{nodes}:{ntasks}", # job name

@@ -16,9 +16,13 @@ rank = comm.Get_rank()
 assert size >= 2, "You must have 2 processors"
 
 max_send = 30
+num_cores_per_node = "unknown"
+
 
 if len(sys.argv) == 2:
     max_send = int(sys.argv[1])
+if len(sys.argv) == 3:
+    num_cores_per_node = int(sys.argv[2])
 
 send_buffer_size = 1024
 
@@ -55,7 +59,7 @@ while send_buffer_size <= 2**max_send:
 
         if rank == 0:
             with open(
-                f"{BENCHMARK_FOLDER}/python-n{size}-sendbenchmark.csv",
+                f"{BENCHMARK_FOLDER}/python-N{size}-n{num_cores_per_node}-pingpong.csv",
                 mode="a",
                 newline="",
             ) as file:

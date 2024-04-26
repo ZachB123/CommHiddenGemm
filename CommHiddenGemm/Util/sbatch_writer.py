@@ -3,6 +3,7 @@ import sys
 GEMM_NODES = [1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 32, 48, 64, 96, 128]
 BENCHMARK_NODES = [1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 32, 48]
 
+
 def write_sbatch(
     file_path,
     job_name,
@@ -63,8 +64,8 @@ def write_gemm():
 
 def write_pingpong_benchmarks():
     write_sbatch(
-        f"python_pingpong", #path
-        f"PingPongPython", # job name
+        f"python_pingpong",  # path
+        f"PingPongPython",  # job name
         "hive-rvuduc3",
         2,
         1,
@@ -75,11 +76,11 @@ def write_pingpong_benchmarks():
         0,
         'echo "Started on `/bin/hostname`"',
         "module load anaconda3 py-mpi4py/3.1.2-mva2-rzdjbn",
-        "srun python pingpong.py 31 1"
+        "srun python pingpong.py 31 1",
     )
     write_sbatch(
-        f"c_pingpong", #path
-        f"PingPongC", # job name
+        f"c_pingpong",  # path
+        f"PingPongC",  # job name
         "hive-rvuduc3",
         2,
         1,
@@ -90,7 +91,7 @@ def write_pingpong_benchmarks():
         0,
         'echo "Started on `/bin/hostname`"',
         "make",
-        "srun ./pingpong 31 1"
+        "srun ./pingpong 31 1",
     )
 
 
@@ -100,12 +101,15 @@ def write_broadcast_benchmarks():
         for ntasks in [1, 2]:
             for program in ["python", "c"]:
                 if program == "python":
-                    build = ["module load anaconda3 py-mpi4py/3.1.2-mva2-rzdjbn", f"srun python broadcast_benchmark.py 31 {ntasks}"]
+                    build = [
+                        "module load anaconda3 py-mpi4py/3.1.2-mva2-rzdjbn",
+                        f"srun python broadcast_benchmark.py 31 {ntasks}",
+                    ]
                 else:
                     build = ["make", f"srun ./broadcastbenchmark 31 {ntasks}"]
                 write_sbatch(
-                    f"{program}-broadcast-N{nodes}-n{ntasks}", #path
-                    f"{program}-broadcast-{nodes}:{ntasks}", # job name
+                    f"{program}-broadcast-N{nodes}-n{ntasks}",  # path
+                    f"{program}-broadcast-{nodes}:{ntasks}",  # job name
                     "hive-rvuduc3",
                     nodes,
                     ntasks,
@@ -115,13 +119,14 @@ def write_broadcast_benchmarks():
                     "zbuchholz3@gatech.edu",
                     0,
                     'echo "Started on `/bin/hostname`"',
-                    *build
+                    *build,
                 )
 
 
 def write_basic_benchmarks():
     write_pingpong_benchmarks()
     write_broadcast_benchmarks()
+
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "b":

@@ -104,7 +104,9 @@ def parse_command_line_args():
         default=None,
     )
     parser.add_argument("-nc", "--no-compute", dest="no_compute", action="store_true")
-    parser.add_argument("-ntasks-per-node", dest="ntpn", default=-1, type=int, action="store_true")
+    parser.add_argument(
+        "-ntasks-per-node", dest="ntpn", default=-1, type=int, action="store_true"
+    )
     args = parser.parse_args()
 
     m = args.m
@@ -370,7 +372,15 @@ def main():
                         np.random.seed(
                             42
                         )  # reset the seed each time so we can go back and debug if needed
-                        driver({"strategy": algo, "m": m, "k": k, "n": n, "ntpm": ntasks_per_node})
+                        driver(
+                            {
+                                "strategy": algo,
+                                "m": m,
+                                "k": k,
+                                "n": n,
+                                "ntpm": ntasks_per_node,
+                            }
+                        )
                 gc.collect()
 
 

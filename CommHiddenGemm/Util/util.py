@@ -154,3 +154,14 @@ def dump_unequal_matrices(
         )
 
     np.set_printoptions(**current_print_options)
+
+
+def get_step_indices(start, stop, step):
+    selected = []
+    for i in range(start, stop, 2 * step):
+        selected.extend(range(i, min(i + step, stop)))
+    return selected
+
+
+def processor_rank_from_IJ(I, J, prow, pcol):
+    return (I % prow) * pcol + (J % pcol)

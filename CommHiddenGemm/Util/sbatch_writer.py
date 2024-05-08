@@ -62,34 +62,55 @@ def write_gemm():
             )
 
 
+# def write_pingpong_benchmarks():
+#     write_sbatch(
+#         f"python_pingpong",  # path
+#         f"PingPongPython",  # job name
+#         "hive-rvuduc3",
+#         2,
+#         1,
+#         "24:00:00",
+#         "hive",
+#         f"PingPongPython",
+#         "zbuchholz3@gatech.edu",
+#         0,
+#         'echo "Started on `/bin/hostname`"',
+#         "module load anaconda3 py-mpi4py/3.1.2-mva2-rzdjbn",
+#         "srun python pingpong.py 31 1",
+#     )
+#     write_sbatch(
+#         f"c_pingpong",  # path
+#         f"PingPongC",  # job name
+#         "hive-rvuduc3",
+#         2,
+#         1,
+#         "24:00:00",
+#         "hive",
+#         f"PingPongC",
+#         "zbuchholz3@gatech.edu",
+#         0,
+#         'echo "Started on `/bin/hostname`"',
+#         "make clean",
+#         "make",
+#         "srun ./pingpong 31 1",
+#     )
+
+
 def write_pingpong_benchmarks():
     write_sbatch(
-        f"python_pingpong",  # path
-        f"PingPongPython",  # job name
+        f"pingpong",
+        f"pingpong_python_and_C",
         "hive-rvuduc3",
         2,
         1,
         "24:00:00",
+        f"PingPongPythonC",
         "hive",
-        f"PingPongPython",
         "zbuchholz3@gatech.edu",
         0,
         'echo "Started on `/bin/hostname`"',
         "module load anaconda3 py-mpi4py/3.1.2-mva2-rzdjbn",
         "srun python pingpong.py 31 1",
-    )
-    write_sbatch(
-        f"c_pingpong",  # path
-        f"PingPongC",  # job name
-        "hive-rvuduc3",
-        2,
-        1,
-        "24:00:00",
-        "hive",
-        f"PingPongC",
-        "zbuchholz3@gatech.edu",
-        0,
-        'echo "Started on `/bin/hostname`"',
         "make",
         "srun ./pingpong 31 1",
     )
@@ -106,7 +127,11 @@ def write_broadcast_benchmarks():
                         f"srun python broadcast_benchmark.py 31 {ntasks}",
                     ]
                 else:
-                    build = ["make", f"srun ./broadcastbenchmark 31 {ntasks}"]
+                    build = [
+                        "make clean",
+                        "make",
+                        f"srun ./broadcastbenchmark 31 {ntasks}",
+                    ]
                 write_sbatch(
                     f"{program}-broadcast-N{nodes}-n{ntasks}",  # path
                     f"{program}-broadcast-{nodes}:{ntasks}",  # job name
@@ -137,3 +162,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # write_pingpong_benchmarks()

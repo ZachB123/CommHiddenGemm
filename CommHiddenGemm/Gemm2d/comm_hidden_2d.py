@@ -8,6 +8,22 @@ from CommHiddenGemm.Util.util import (
     processor_rank_from_IJ,
 )
 
+
+# Function to print with rank and color
+def parallel_print(message):
+    rank = MPI.COMM_WORLD.Get_rank()
+    size = MPI.COMM_WORLD.Get_size()
+
+    def get_color_code(rank, num_colors):
+        return f"\033[38;5;{rank % num_colors}m"
+    
+    color_code = get_color_code(rank, size)
+
+    print(f"{color_code}[{rank}/{size - 1}]\n{message}\033[0m")
+
+def proc_2d_indices_to_proc(I, J, prow, pcol):
+    return I * pcol + J
+
 MATRIX_A = np.array(
     [
         [1.0, -4.0, -9.0, -2.0, 0.0, -5.0],
@@ -36,88 +52,39 @@ def AG_A_COL_X_AG_B_ROW(A, B, C, m, k, n, prow, pcol, I, J):
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
-    ktile = k // prow
 
-    AIJ = A[
-        I * (m // prow) : (I + 1) * (m // prow),
-        get_step_indices(J * (ktile // pcol), MATRIX_A.shape[1], (k // prow) // 2),
-    ].copy()
-    BIJ = B[
-        I * (k // prow) : (I + 1) * (k // prow), J * (n // pcol) : (J + 1) * (n // pcol)
-    ].copy()
-    CIJ = C[
-        I * (m // prow) : (I + 1) * (m // prow), J * (n // pcol) : (J + 1) * (n // pcol)
-    ].copy()
+    starting_A_index = I
+    B_half = J # if 0 we use top half of B if 1 we use bottom half
 
-    # just get first square
-    # column_block = rank // 2
-    # Acurrent = A[]
-    # C = C + np.matmul(A[:, 0: ktile // 2], B[0 : ktile // 2, :])
-    # if rank == 0:
-    #     print(C)
-    ktile = k // prow
-    # should these be copies?
-    Acurrent = A[
-        I * (m // prow) : (I + 1) * (m // prow),
-        I * (k // prow)
-        + J * (ktile // pcol) : I * (k // prow)
-        + (J + 1) * (ktile // pcol),
-    ].copy()
-    Bcurrent = B[
-        I * (k // prow)
-        + J * (ktile // pcol) : I * (k // prow)
-        + (J + 1) * (ktile // pcol),
-        J * (n // pcol) : (J + 1) * (n // pcol),
-    ].copy()
-    # if rank == 1:
-    #     print(Acurrent)
-    for Krow in range(prow):
-        Trow = (I - Krow) % prow
-        for Kcol in range(pcol):
-            Tcol = (J - Kcol) % pcol
-            # if rank == 0:
-            # print(f"Rank: {rank}, Trow: {Trow}, Tcol: {Tcol}")
-            Acurrent = A[
-                I * (m // prow) : (I + 1) * (m // prow),
-                Trow * (k // prow)
-                + Tcol * (ktile // pcol) : Trow * (k // prow)
-                + (Tcol + 1) * (ktile // pcol),
-            ].copy()
-            Anext = np.empty(Acurrent.shape)
-            A_send_request = comm.Isend(
-                Acurrent, processor_rank_from_IJ(I, J - 1, prow, pcol)
-            )
-            A_receive_request = comm.Irecv(
-                Anext, processor_rank_from_IJ(I, J + 1, prow, pcol)
-            )
+    for i in range(prow):
+        for j in range(pcol):
+            # TODO there is an unecessary communication
+            A_curr = A[:, (starting_A_index * A.shape[1]) // prow : ((starting_A_index + 1) * A.shape[1]) // prow]
+            B_curr = B[B_half * (B.shape[0] // 2) : (B_half + 1) * (B.shape[0] // 2), :]
 
-            Bcurrent = B[
-                Trow * (k // prow)
-                + Tcol * (ktile // pcol) : Trow * (k // prow)
-                + (Tcol + 1) * (ktile // pcol),
-                I * (m // prow) : (I + 1) * (m // prow),
-            ].copy()
-            Bnext = np.empty(Bcurrent.shape)
-            B_send_request = comm.Isend(
-                Bcurrent, processor_rank_from_IJ(I - 1, J, prow, pcol)
-            )
-            B_receive_request = comm.Irecv(
-                Bnext, processor_rank_from_IJ(I + 1, J, prow, pcol)
-            )
+            A_send_request = comm.Isend(A_curr, proc_2d_indices_to_proc(I, (J + (-1)**(J % pcol)) % pcol, prow, pcol))
+            A_next = np.empty((A.shape[0], (((starting_A_index + 1) * A.shape[1]) // prow) - ((starting_A_index * A.shape[1]) // prow)))
+            A_receive_request = comm.Irecv(A_next, proc_2d_indices_to_proc(I, (J + (-1)**((J % pcol) + 1)) % pcol, prow, pcol))
 
-            if rank == 0:
-                print(f"Acurrent:\n{Acurrent}\nBCurrent:\n{Bcurrent}\n")
+            C = C + np.matmul(A_curr, B_curr)
 
-            CIJ = CIJ + np.matmul(Acurrent, Bcurrent)
+            B_half = 1 - B_half
+            
+            MPI.Request.Waitall([A_send_request, A_receive_request])
+            A[:, (starting_A_index * A.shape[1]) // prow : ((starting_A_index + 1) * A.shape[1]) // prow] = A_next
 
-            MPI.Request.waitall(
-                [A_send_request, A_receive_request, B_send_request, B_receive_request]
-            )
-            Acurrent = Anext
-            Bcurrent = Bnext
+        starting_A_index = (starting_A_index + 1) % prow
 
-    if rank == 0:
-        print(CIJ)
+
+        B_send_request = comm.Isend(B, proc_2d_indices_to_proc((I - 1) % prow, J, prow, pcol))
+        B_next = np.empty(B.shape)
+        B_receive_request = comm.Irecv(
+            B_next, proc_2d_indices_to_proc((I + 1) % prow, J, prow, pcol)
+        )
+        MPI.Request.Waitall([B_send_request, B_receive_request])
+        B = B_next
+
+    parallel_print(C)
 
 
 def main():
@@ -136,13 +103,14 @@ def main():
     assert (
         prow * pcol == size
     ), f"The number of processors must be turned into a {prow}x{pcol} grid."
+
     assert k % prow == 0 and k % pcol == 0, "processors do not split k well"
     assert m % prow == 0, "processors do not split m well"
     assert n % pcol == 0, "processors do not split n well"
 
     ktile = k // prow
 
-    # I and J start at 1 I think due to pseudocode
+    # the local row and column processor indices
     I = rank // pcol
     J = rank % pcol
 
@@ -159,7 +127,7 @@ def main():
         I * (m // prow) : (I + 1) * (m // prow), J * (n // pcol) : (J + 1) * (n // pcol)
     ].copy()
 
-    AG_A_COL_X_AG_B_ROW(MATRIX_A, MATRIX_B, MATRIX_C, m, k, n, prow, pcol, I, J)
+    AG_A_COL_X_AG_B_ROW(AIJ, BIJ, CIJ, m, k, n, prow, pcol, I, J)
 
     if rank == 0:
         print(f"Expected:\n{np.matmul(MATRIX_A,MATRIX_B) + MATRIX_C}")
@@ -178,5 +146,6 @@ def generate_matrix(row, col, min, max):
 
 
 if __name__ == "__main__":
+    # parallel_print("test")
     main()
     #  print(get_step_indices(20,3))

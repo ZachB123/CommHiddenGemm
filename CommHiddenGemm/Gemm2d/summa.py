@@ -73,7 +73,7 @@ def main():
 
     row_comm = comm.Split(rank // num_cols, rank)
     col_comm = comm.Split(rank % num_cols, rank)
-
+    
     # these can be used as like coordinates in the processor grid
     row_rank = row_comm.Get_rank()
     col_rank = col_comm.Get_rank()

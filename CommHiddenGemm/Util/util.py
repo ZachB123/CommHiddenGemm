@@ -162,11 +162,7 @@ def get_step_indices(start, k, partitions, width):
     for curr in range(start, k, partitions * width):
         selected_indices.extend(list(range(curr, curr + width)))
     return selected_indices
-    # return list(range(start, stop, step))
-    # selected = []
-    # for i in range(start, stop, 2 * step):
-    #     selected.extend(range(i, min(i + step, stop)))
-    # return selected
+
 
 
 def processor_rank_from_IJ(I, J, prow, pcol):

@@ -180,6 +180,32 @@ MATRIX_B6 = np.array(
 
 MATRIX_C6 = np.zeros((2,3), dtype=MATRIX_DTYPE)
 
+def pad_amount(a, b):
+    # we want a % b to be 0 so return the minimum amount to add to a to make this true
+    remainder = a % b
+    if remainder == 0:
+        return 0 
+    else:
+        return b - remainder 
+    
+import numpy as np
+
+def pad_matrix_with_zeros(matrix, row_pad, col_pad):
+    if row_pad > 0:
+        matrix = np.vstack((matrix, np.zeros((row_pad, matrix.shape[1]))))
+
+    if col_pad > 0:
+        matrix = np.hstack((matrix, np.zeros((matrix.shape[0], col_pad))))
+
+    return matrix
+
+def remove_padding(matrix, row_pad, col_pad):
+    if row_pad > 0:
+        matrix = matrix[:-row_pad, :]
+    if col_pad > 0:
+        matrix = matrix[:, :-col_pad]
+    return matrix
+
 
 def get_subtile(tile, slice, n_slices, direction):
     # n_slices is like how many individual slices we will eventually make, slice is the index for n_slices
@@ -228,9 +254,16 @@ def AG_A_COL_X_AG_B_ROW(A, B, C, row_comm, col_comm, m, k, n, prow, pcol, I, J):
         for j in range(pcol):
 
             A_curr = get_subtile(A, outer_index, prow, "c")
-            B_curr = get_subtile(B, inner_index, pcol, "r")
 
-            # parallel_print(f"Step ({i},{j})\nA_curr:\n{A_curr}\nB_curr\n{B_curr}\n", flush=True)
+            # allgather A col
+            if j != pcol - 1:
+                # sending subtile A
+                A_send_request = row_comm.Isend(np.ascontiguousarray(A_curr), (row_rank - 1) % pcol)
+                A_next = np.empty(A_curr.shape)
+                A_receive_request = row_comm.Irecv(A_next, (row_rank + 1) % pcol)
+
+
+            B_curr = get_subtile(B, inner_index, pcol, "r")
 
             # allgather B row
             if i != prow - 1:
@@ -239,12 +272,8 @@ def AG_A_COL_X_AG_B_ROW(A, B, C, row_comm, col_comm, m, k, n, prow, pcol, I, J):
                 B_next = np.empty(B_curr.shape)
                 B_receive_request = col_comm.Irecv(B_next, (col_rank + 1) % prow)
 
-            # allgather A col
-            if j != pcol - 1:
-                # sending subtile A
-                A_send_request = row_comm.Isend(np.ascontiguousarray(A_curr), (row_rank - 1) % pcol)
-                A_next = np.empty(A_curr.shape)
-                A_receive_request = row_comm.Irecv(A_next, (row_rank + 1) % pcol)
+
+            # parallel_print(f"Step ({i},{j})\nA_curr:\n{A_curr}\nB_curr\n{B_curr}\n", flush=True)
 
             C += np.matmul(A_curr, B_curr)
 
@@ -262,9 +291,14 @@ def AG_A_COL_X_AG_B_ROW(A, B, C, row_comm, col_comm, m, k, n, prow, pcol, I, J):
             # updates which subtile of the B matrix we use since we now have a different chunk of A after communication
             inner_index = (inner_index + 1) % pcol
 
+        # make sure have B here
+
         # change the subtile of A since the entire B tile has been shuffled
         outer_index = (outer_index + 1) % prow
 
+
+def AG_A_COL_X_AG_B_COL(A, B, C, row_comm, col_comm, m, k, n, prow, pcol, I, J):
+    pass
 
 
 def test_matrix_multiply(algorithm, m, k, n, prow, pcol):
@@ -278,10 +312,11 @@ def test_matrix_multiply(algorithm, m, k, n, prow, pcol):
         prow * pcol == size
     ), f"The number of processors must be turned into a {prow}x{pcol} grid."
 
-    assert k % prow == 0 and k % pcol == 0, "processors do not split k well"
-    assert k % (pcol * prow) == 0, "unable to properly subtile the matrices"
-    assert m % prow == 0, "processors do not split m well"
-    assert n % pcol == 0, "processors do not split n well"
+    # dont need these with the padding
+    # assert k % prow == 0 and k % pcol == 0, "processors do not split k well"
+    # assert k % (pcol * prow) == 0, "unable to properly subtile the matrices"
+    # assert m % prow == 0, "processors do not split m well"
+    # assert n % pcol == 0, "processors do not split n well"
 
     row_comm = comm.Split(rank // pcol, rank)
     col_comm = comm.Split(rank % pcol, rank)
@@ -295,24 +330,23 @@ def test_matrix_multiply(algorithm, m, k, n, prow, pcol):
     A = generate_matrix(m, k, -10, 10)
     B = generate_matrix(k, n, -10, 10)
     C = np.zeros((m, n), dtype=MATRIX_DTYPE)
-    # A = MATRIX_A
-    # B = MATRIX_B
-    # C = MATRIX_C
-    # A = MATRIX_A2
-    # B = MATRIX_B2
-    # C = MATRIX_C2
-    # A = MATRIX_A3
-    # B = MATRIX_B3
-    # C = MATRIX_C3
-    # A = MATRIX_A4
-    # B = MATRIX_B4
-    # C = MATRIX_C4
-    # A = MATRIX_A5
-    # B = MATRIX_B5
-    # C = MATRIX_C5
-    # A = MATRIX_A6
-    # B = MATRIX_B6
-    # C = MATRIX_C6
+
+    A_row_pad = pad_amount(m, prow)
+    K_pad = pad_amount(k, pcol * prow)
+    B_col_pad = pad_amount(n, pcol)
+
+    A = pad_matrix_with_zeros(A, A_row_pad, K_pad)
+    B = pad_matrix_with_zeros(B, K_pad, B_col_pad)
+    C = pad_matrix_with_zeros(C, A_row_pad, B_col_pad)
+    # if rank == 0:
+    #     print(A)
+    #     print(B)
+    #     print(C)
+
+    m = A.shape[0]
+    k = A.shape[1]
+    n = B.shape[1]
+
 
     A_width = k // (pcol * prow)
     # parallel_print(A_width)
@@ -330,17 +364,16 @@ def test_matrix_multiply(algorithm, m, k, n, prow, pcol):
     # parallel_print(f"AIJ:\n{AIJ}\nBIJ\n{BIJ}")
     algorithm(AIJ, BIJ, CIJ, row_comm, col_comm, m, k, n, prow, pcol, I, J)
     
-    expected = np.matmul(A, B) + C
     comm.barrier()
-    if rank == 0:
-        print(f"Expected:\n{expected}")
 
     row_gather = row_comm.gather(CIJ, root=0)
     if row_comm.Get_rank() == 0:
         row_gather = np.hstack(row_gather)
         result = col_comm.gather(row_gather, root=0)
         if rank == 0:
-            actual = np.vstack(result)
+            actual = remove_padding(np.vstack(result), A_row_pad, B_col_pad)
+            expected = remove_padding(np.matmul(A, B) + C, A_row_pad, B_col_pad)
+            print(f"Expected:\n{expected}")
             parallel_print(f"Actual:\n{actual}")
             parallel_print(f"Equal: {np.all(np.isclose(expected, actual))}")
 
@@ -351,17 +384,25 @@ def main():
     size = comm.Get_size()
 
     # different suites
+    if size == 2:
+        test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 3, 6, 4, 1, 2)
+        test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 120, 6, 4, 2, 1)
     if size == 6:
         test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 3, 6, 4, 3, 2)
         test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 3 * 500, 6 * 3, 4, 3, 2)
         test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 2, 2 * 3, 3, 2, 3)
+        test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 3, 10, 4, 2, 3) # padding needed
+        test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 4, 12, 6, 2, 3)
     if size == 12:
         test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 4 * 3, 12 * 7, 3 * 2, 4, 3)
+        test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 5, 15, 5, 4, 3) # padding needed
         test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 3 * 16, 3 * 4 * 7, 4 * 17, 3, 4)
     if size == 9:
         test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 9, 9, 9, 3, 3)
     if size == 25:
         test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 5, 5 * 5, 5, 5, 5)
+        test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 14, 37, 17, 5, 5)
+
 
     # print(generate_matrix(2, 6, -10, 10))
     # print(generate_matrix(6, 3, -10, 10))

@@ -11,7 +11,8 @@ from GemmUtil.helper_general import (
     parallel_print, 
     set_numpy_seed,
     get_date_string,
-    calculate_throughput
+    calculate_throughput,
+    matrix_multiply
 )
 
 from GemmUtil.helper_2d import (
@@ -97,6 +98,72 @@ def test_matrix_multiply(algorithm, m, k, n, prow, pcol):
             print(f"Expected:\n{expected}")
             parallel_print(f"Actual:\n{actual}")
             parallel_print(f"Equal: {np.all(np.isclose(expected, actual))}")
+    if not os.path.exists("./Gemm2d/TempBenchmarks"):
+        os.makedirs("./Gemm2d/TempBenchmarks")
+
+
+def one_processor_test():
+    if not os.path.exists("./Gemm2d/TempBenchmarks"):
+        os.makedirs("./Gemm2d/TempBenchmarks")
+
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+
+    prow = 4
+    pcol = 4
+
+    row_comm = comm.Split(rank // pcol, rank)
+    col_comm = comm.Split(rank % pcol, rank)
+
+    J = row_comm.Get_rank()
+    I = col_comm.Get_rank()
+
+    num_iterations = 100
+    m = 16000
+    k = 16000
+    n = 16000
+
+    # now we want the subile sizes cuz this is what is actually multiplied locally
+
+    a_subtile_row = m // prow
+    a_subtile_col = k // (prow * pcol)
+
+    b_subtile_row = k // (prow * pcol)
+    b_subtile_col = n // pcol
+
+    c_subtile_row = m // prow 
+    c_subtile_col = n // pcol
+
+    for i in range(num_iterations):
+        if rank == 0:
+            print(i, flush=True)
+
+        A_I = generate_matrix(a_subtile_row, a_subtile_col, -10, 10)
+        B_I = generate_matrix(b_subtile_row, b_subtile_col, -10, 10)
+        C_I = generate_matrix(c_subtile_row, c_subtile_col, -10, 10)
+
+        start_time = MPI.Wtime()
+        for i in range(prow * pcol):
+            matrix_multiply(A_I, B_I, C_I)
+        elapsed_time = MPI.Wtime() - start_time
+
+        gc.collect()
+
+        if rank == 0:
+            with open(f"./Gemm2d/TempBenchmarks/N16-n1-LocalMultiplication-{get_date_string()}.csv", mode="a", newline="") as file:
+                writer = csv.writer(file)
+                # equal = matrices_equal(standard_multiply, out)
+                writer.writerow(
+                    [
+                        "LocalMultiplication",
+                        size,
+                        m,
+                        n,
+                        k,
+                        elapsed_time,
+                    ]
+                )
 
 
 def initial_benchmark():
@@ -192,5 +259,6 @@ def main():
 
 if __name__ == "__main__":
     set_numpy_seed(42)
-    initial_benchmark()
+    # initial_benchmark()
+    one_processor_test()
     # main()

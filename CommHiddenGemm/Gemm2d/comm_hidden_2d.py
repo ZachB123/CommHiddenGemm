@@ -33,6 +33,10 @@ def AG_A_COL_X_AG_B_ROW(A, B, C, row_comm, col_comm, m, k, n, prow, pcol, I, J):
     # which chunk of the A matrix we are using
     outer_index = I
 
+    # make the subtile blocks once to reuse and not reallocate space every time
+    A_next = np.empty((m // prow,  k // (prow * pcol)))
+    B_next = np.empty((k // (prow * pcol), n // pcol))
+
     # loop shuffles B around across the rows (allgather B row)
     for i in range(prow):
 
@@ -50,7 +54,6 @@ def AG_A_COL_X_AG_B_ROW(A, B, C, row_comm, col_comm, m, k, n, prow, pcol, I, J):
                 A_send_request = row_comm.Isend(
                     np.ascontiguousarray(A_curr), (row_rank - 1) % pcol
                 )
-                A_next = np.empty(A_curr.shape)
                 A_receive_request = row_comm.Irecv(A_next, (row_rank + 1) % pcol)
 
             B_curr = get_subtile(B, inner_index, pcol, "r")
@@ -61,7 +64,6 @@ def AG_A_COL_X_AG_B_ROW(A, B, C, row_comm, col_comm, m, k, n, prow, pcol, I, J):
                 B_send_request = col_comm.Isend(
                     np.ascontiguousarray(B_curr), (col_rank - 1) % prow
                 )
-                B_next = np.empty(B_curr.shape)
                 B_receive_request = col_comm.Irecv(B_next, (col_rank + 1) % prow)
 
             # parallel_print(f"Step ({i},{j})\nA_curr:\n{A_curr}\nB_curr\n{B_curr}\n", flush=True)

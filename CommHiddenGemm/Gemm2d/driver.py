@@ -117,9 +117,9 @@ def initial_benchmark():
     I = col_comm.Get_rank()
 
     num_iterations = 100
-    m = 16000
-    k = 16000
-    n = 16000
+    m = 160
+    k = 160
+    n = 160
 
     a_tile_row = m // prow
     a_tile_col = k // pcol
@@ -131,6 +131,9 @@ def initial_benchmark():
     c_tile_col = n // pcol
 
     for i in range(num_iterations):
+        if rank == 0:
+            print(i, flush=True)
+
         A_I = generate_matrix(a_tile_row, a_tile_col, -10, 10)
         B_I = generate_matrix(b_tile_row, b_tile_col, -10, 10)
         C_I = generate_matrix(c_tile_row, c_tile_col, -10, 10)

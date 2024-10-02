@@ -1,10 +1,18 @@
 import numpy as np
 from mpi4py import MPI
-
+import gc
+import os
+import csv
 
 from GemmUtil.constants import MATRIX_DTYPE
 
-from GemmUtil.helper_general import generate_matrix, parallel_print, set_numpy_seed
+from GemmUtil.helper_general import (
+    generate_matrix, 
+    parallel_print, 
+    set_numpy_seed,
+    get_date_string,
+    calculate_throughput
+)
 
 from GemmUtil.helper_2d import (
     pad_amount,
@@ -91,6 +99,65 @@ def test_matrix_multiply(algorithm, m, k, n, prow, pcol):
             parallel_print(f"Equal: {np.all(np.isclose(expected, actual))}")
 
 
+def initial_benchmark():
+    if not os.path.exists("./Gemm2d/TempBenchmarks"):
+        os.makedirs("./Gemm2d/TempBenchmarks")
+
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+
+    prow = 4
+    pcol = 4
+
+    row_comm = comm.Split(rank // pcol, rank)
+    col_comm = comm.Split(rank % pcol, rank)
+
+    J = row_comm.Get_rank()
+    I = col_comm.Get_rank()
+
+    num_iterations = 100
+    m = 16000
+    k = 16000
+    n = 16000
+
+    a_tile_row = m // prow
+    a_tile_col = k // pcol
+
+    b_tile_row = k // prow
+    b_tile_col = n // pcol
+
+    c_tile_row = m // prow 
+    c_tile_col = n // pcol
+
+    for i in range(num_iterations):
+        A_I = generate_matrix(a_tile_row, a_tile_col, -10, 10)
+        B_I = generate_matrix(b_tile_row, b_tile_col, -10, 10)
+        C_I = generate_matrix(c_tile_row, c_tile_col, -10, 10)
+
+        start_time = MPI.Wtime()
+        AG_A_COL_X_AG_B_ROW(A_I, B_I, C_I, row_comm, col_comm, m, k, n, 4, 4, I, J)
+        elapsed_time = MPI.Wtime() - start_time
+
+        gc.collect()
+
+        if rank == 0:
+            with open(f"./Gemm2d/TempBenchmarks/N16-n1-Gemm2dInitial-{get_date_string()}.csv", mode="a", newline="") as file:
+                writer = csv.writer(file)
+                # equal = matrices_equal(standard_multiply, out)
+                writer.writerow(
+                    [
+                        "AG_AG_COL_X_AG_B_ROW",
+                        size,
+                        m,
+                        n,
+                        k,
+                        calculate_throughput(elapsed_time, m, k, n),
+                        elapsed_time,
+                    ]
+                )
+
+
 def main():
 
     comm = MPI.COMM_WORLD
@@ -112,11 +179,15 @@ def main():
         test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 3 * 16, 3 * 4 * 7, 4 * 17, 3, 4)
     if size == 9:
         test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 9, 9, 9, 3, 3)
+    if size == 16:
+        test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 1600, 1600, 1600, 4, 4)
     if size == 25:
         test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 5, 5 * 5, 5, 5, 5)
         test_matrix_multiply(AG_A_COL_X_AG_B_ROW, 14, 37, 17, 5, 5)
 
 
+
 if __name__ == "__main__":
     set_numpy_seed(42)
-    main()
+    initial_benchmark()
+    # main()

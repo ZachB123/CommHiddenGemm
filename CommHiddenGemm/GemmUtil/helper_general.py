@@ -1,5 +1,6 @@
 import numpy as np
 from mpi4py import MPI
+from datetime import datetime
 
 from GemmUtil.constants import MATRIX_DTYPE
 
@@ -94,3 +95,15 @@ def calculate_throughput(time, m, n, k):
         float: The throughput in giga floating point operations per second (GFLOPS).
     """
     return (2 * m * n * k / time) * 1e-9
+
+
+def get_date_string():
+    """
+    Get the current date as a formatted string.
+
+    Returns:
+        str: The current date formatted as mm-dd-yyyy.
+    """
+    current_date = datetime.now()
+    formatted_date = current_date.strftime("%m-%d-%Y")
+    return formatted_date

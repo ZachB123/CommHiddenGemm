@@ -5,20 +5,26 @@ import sys
 import os
 import csv
 import argparse
-
-# import psutil # for checking memory usage
 import gc  # garbage collection
-from util import (
+
+from GemmUtil.constants import (
     MATRIX_DTYPE,
     BENCHMARK_FILE,
+)
+
+from GemmUtil.helper_general import (
     generate_matrix,
     matrix_multiply,
     matrices_equal,
     calculate_throughput,
+)
+
+from GemmUtil.helper_1d import (
     split_matrix,
     dump_unequal_matrices,
     generate_local_matrix,
 )
+
 from gemm1d import (
     allgather_A_col,
     allgather_A_row,
@@ -46,17 +52,7 @@ logging.basicConfig(level=logging.DEBUG)  # nothing is 51
 STOP_OUTPUT = False
 BENCHMARK_FOLDER = "benchmarks"
 DEFAULT_STRATEGY = allgather_A_col
-# STRATEGIES = [
-#     (allgather_A_col, allgather_A_col_no_compute),
-#     (allgather_A_row, allgather_A_row_no_compute),
-#     (allgather_B_col, allgather_B_col_no_compute),
-#     (allgather_B_row, allgather_B_row_no_compute),
-#     (reducescatter_C_col, reducescatter_C_col_no_compute),
-#     (reducescatter_C_row, reducescatter_C_row_no_compute),
-#     (broadcast_based, broadcast_based_no_compute),
-#     (broadcast_based_with_overlap, broadcast_based_with_overlap_no_compute),
-#     (throughput_test,),
-# ]
+
 COMPUTE_STRATEGIES = [
     allgather_A_col,
     allgather_A_row,
@@ -68,6 +64,7 @@ COMPUTE_STRATEGIES = [
     broadcast_based_with_overlap,
     throughput_test,
 ]
+
 NO_COMPUTE_STRATEGIES = [
     allgather_A_col_no_compute,
     allgather_A_row_no_compute,
@@ -79,7 +76,6 @@ NO_COMPUTE_STRATEGIES = [
     broadcast_based_with_overlap_no_compute,
 ]
 
-# EXPLODED_STRATEGIES = [item for sublist in STRATEGIES for item in sublist]
 EXPLODED_STRATEGIES = COMPUTE_STRATEGIES + NO_COMPUTE_STRATEGIES
 NUM_REPEATS = 7
 
@@ -89,6 +85,17 @@ if not os.path.exists(BENCHMARK_FOLDER):
 
 
 def parse_command_line_args():
+    """
+    Parse command line arguments for array dimensions and strategy selection.
+
+    Returns:
+        tuple: A tuple containing:
+            - m (int): M dimension of the matrix.
+            - k (int): K dimension of the matrix.
+            - n (int): N dimension of the matrix.
+            - strategy (function): The chosen strategy function.
+            - ntpn (int): Number of tasks per node.
+    """
     parser = argparse.ArgumentParser(
         description="Array Dimensions. A (m x k), B (k x n), C (m x n)"
     )
@@ -143,7 +150,10 @@ def parse_command_line_args():
     else:
         local_index = 1 if args.no_compute and strategy != "throughput_test" else 0
         strategy = [
-            strat[local_index] for strat in STRATEGIES if strategy == strat[0].__name__
+            # EXPLODED_STRATEGIES used to be STRATEGIES idk what this does come back here if it crashes
+            strat[local_index]
+            for strat in EXPLODED_STRATEGIES
+            if strategy == strat[0].__name__
         ]
         if len(strategy) == 0:
             parser.error(
@@ -178,23 +188,11 @@ def driver(manual_args):
         dimension % size == 0 for dimension in [m, k, n]
     ), "All dimensions must be divisible by the number of processors"
 
-    # MATRIX_A = generate_matrix(m, k, -10, 10)
-    # MATRIX_B = generate_matrix(k, n, -10, 10)
-    # MATRIX_C = np.zeros((m, n), dtype=MATRIX_DTYPE)
-
-    # standard_multiply = matrix_multiply(MATRIX_A, MATRIX_B, MATRIX_C)
-
-    # if rank == 0:
-    #     print(f"A:\n{MATRIX_A}\nB:\n{MATRIX_B}\nC:\n{MATRIX_C}\nExpected:\n{standard_multiply}")
-
     A_I, B_I, C_I = [None] * 3
     # this does not accoutn for before the algorithm where all 3 matrices exist or when it finishes and the final matrix is gathered to a process
     expected_max_memory_per_proc_GB = None  # some will have 2 for the point when like you doing to computation but one is like arriving/leaving
 
     if strategy.__name__ in ["allgather_A_col", "allgather_A_col_no_compute"]:
-        # A_I = split_matrix(MATRIX_A, "c", rank, size)
-        # B_I = split_matrix(MATRIX_B, "c", rank, size)
-        # C_I = split_matrix(MATRIX_C, "c", rank, size)
         A_I = generate_local_matrix(m, k, "c", size)
         B_I = generate_local_matrix(k, n, "c", size)
         C_I = generate_local_matrix(m, n, "c", size, zeros=True)
@@ -202,9 +200,6 @@ def driver(manual_args):
             2 * sys.getsizeof(A_I) + sys.getsizeof(B_I) + sys.getsizeof(C_I)
         ) / (1024**3)
     elif strategy.__name__ in ["allgather_A_row", "allgather_A_row_no_compute"]:
-        # A_I = split_matrix(MATRIX_A, "r", rank, size)
-        # B_I = split_matrix(MATRIX_B, "c", rank, size)
-        # C_I = split_matrix(MATRIX_C, "c", rank, size)
         A_I = generate_local_matrix(m, k, "r", size)
         B_I = generate_local_matrix(k, n, "c", size)
         C_I = generate_local_matrix(m, n, "c", size, zeros=True)
@@ -212,9 +207,6 @@ def driver(manual_args):
             2 * sys.getsizeof(A_I) + sys.getsizeof(B_I) + sys.getsizeof(C_I)
         ) / (1024**3)
     elif strategy.__name__ in ["allgather_B_col", "allgather_B_col_no_compute"]:
-        # A_I = split_matrix(MATRIX_A, "r", rank, size)
-        # B_I = split_matrix(MATRIX_B, "c", rank, size)
-        # C_I = split_matrix(MATRIX_C, "r", rank, size)
         A_I = generate_local_matrix(m, k, "r", size)
         B_I = generate_local_matrix(k, n, "c", size)
         C_I = generate_local_matrix(m, n, "r", size, zeros=True)
@@ -229,9 +221,6 @@ def driver(manual_args):
         "broadcast_based_with_overlap",
         "broadcast_based_with_overlap_no_compute",
     ]:
-        # A_I = split_matrix(MATRIX_A, "r", rank, size)
-        # B_I = split_matrix(MATRIX_B, "r", rank, size)
-        # C_I = split_matrix(MATRIX_C, "r", rank, size)
         A_I = generate_local_matrix(m, k, "r", size)
         B_I = generate_local_matrix(k, n, "r", size)
         C_I = generate_local_matrix(m, n, "r", size, zeros=True)
@@ -239,9 +228,6 @@ def driver(manual_args):
             sys.getsizeof(A_I) + 2 * sys.getsizeof(B_I) + sys.getsizeof(C_I)
         ) / (1024**3)
     elif strategy.__name__ in ["reducescatter_C_col", "reducescatter_C_col_no_compute"]:
-        # A_I = split_matrix(MATRIX_A, "c", rank, size)
-        # B_I = split_matrix(MATRIX_B, "r", rank, size)
-        # C_I = split_matrix(MATRIX_C, "c", rank, size)
         A_I = generate_local_matrix(m, k, "c", size)
         B_I = generate_local_matrix(k, n, "r", size)
         C_I = generate_local_matrix(m, n, "c", size, zeros=True)
@@ -249,9 +235,6 @@ def driver(manual_args):
             sys.getsizeof(A_I) + sys.getsizeof(B_I) + 2 * sys.getsizeof(C_I)
         ) / (1024**3)
     elif strategy.__name__ in ["reducescatter_C_row", "reducescatter_C_row_no_compute"]:
-        # A_I = split_matrix(MATRIX_A, "c", rank, size)
-        # B_I = split_matrix(MATRIX_B, "r", rank, size)
-        # C_I = split_matrix(MATRIX_C, "r", rank, size)
         A_I = generate_local_matrix(m, k, "c", size)
         B_I = generate_local_matrix(k, n, "r", size)
         C_I = generate_local_matrix(m, n, "r", size, zeros=True)
@@ -259,9 +242,6 @@ def driver(manual_args):
             sys.getsizeof(A_I) + sys.getsizeof(B_I) + 2 * sys.getsizeof(C_I)
         ) / (1024**3)
     elif strategy.__name__ in ["throughput_test"]:
-        # A_I = MATRIX_A
-        # B_I = MATRIX_B
-        # C_I = MATRIX_C
         A_I = generate_matrix(m, k, -10, 10)
         B_I = generate_matrix(k, n, -10, 10)
         C_I = generate_matrix(m, n, -10, 10)
@@ -269,21 +249,10 @@ def driver(manual_args):
             (sys.getsizeof(A_I) + sys.getsizeof(B_I) + sys.getsizeof(C_I))
         ) / (1024**3)
 
-    # if rank == 0 and not STOP_OUTPUT:
-    #     pid = os.getpid()
-    #     print(f"Current memory usage for process {pid} is {psutil.Process(pid).memory_info().rss / 1024 / 1024} MB. Memory for the matrices = {(8 * (m * k + k * n + m * n)) / 1024 / 1024} MB. actual {(sys.getsizeof(MATRIX_A) + sys.getsizeof(MATRIX_B) + sys.getsizeof(MATRIX_C)) / 1024 / 1024}")
-
     MATRIX_A = None
     MATRIX_B = None
     MATRIX_C = None
     gc.collect()  # ensure that we do not bog down the memory of the system
-
-    # if rank == 0 and not STOP_OUTPUT:
-    #     pid = os.getpid()
-    #     print(f"Current memory usage for process {pid} after garbage collection is {psutil.Process(pid).memory_info().rss / 1024 / 1024} MB. Memory for the matrices = {(8 * (m * k + k * n + m * n)) / 1024 / 1024} MB.")
-
-    # if rank == 0:
-    #     print(f"A_I\n{A_I}\nB_I\n{B_I}\nC_I\n{C_I}\n")
 
     # only rank 0 has the full out matrix
     start_time = MPI.Wtime()

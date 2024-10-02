@@ -1,57 +1,16 @@
 import numpy as np
 from mpi4py import MPI
 
-from CommHiddenGemm.Util.util import (
+from GemmUtil.constants import (
     MATRIX_DTYPE,
-    matrices_equal,
+    MATRIX_A_9_9 as MATRIX_A,
+    MATRIX_B_9_9 as MATRIX_B,
+    MATRIX_C_9_9 as MATRIX_C,
 )
 
-np.random.seed(420)
+from GemmUtil.helper_general import matrices_equal
 
-MATRIX_A = np.array(
-    [
-        [-4.0, 9.0, 4.0, 0.0, -3.0, -4.0, 8.0, 0.0, 0.0],
-        [-7.0, -3.0, -8.0, -9.0, 1.0, -5.0, -9.0, -10.0, 1.0],
-        [1.0, 6.0, -1.0, 5.0, 4.0, 4.0, 8.0, 1.0, 9.0],
-        [-8.0, -6.0, 8.0, -4.0, -2.0, -4.0, 7.0, -7.0, 3.0],
-        [7.0, -2.0, -9.0, 9.0, 4.0, -4.0, 1.0, -3.0, 4.0],
-        [-8.0, 3.0, 6.0, -7.0, 7.0, -3.0, -7.0, -9.0, -5.0],
-        [-1.0, -7.0, 7.0, 1.0, -9.0, -1.0, -7.0, 3.0, 5.0],
-        [4.0, -3.0, 3.0, -3.0, 5.0, 2.0, 7.0, 4.0, 2.0],
-        [-2.0, 4.0, 2.0, -10.0, -4.0, -2.0, -10.0, 1.0, -3.0],
-    ],
-    dtype=MATRIX_DTYPE,
-)
-
-MATRIX_B = np.array(
-    [
-        [7.0, -2.0, -4.0, 9.0, 4.0, 0.0, -2.0, 4.0, -4.0],
-        [-7.0, -6.0, -10.0, 3.0, -5.0, -5.0, 5.0, 2.0, 1.0],
-        [-2.0, -8.0, -5.0, -5.0, 3.0, 5.0, 5.0, -2.0, -1.0],
-        [1.0, -1.0, -3.0, -1.0, -10.0, -6.0, 4.0, 7.0, 5.0],
-        [8.0, -8.0, -5.0, 9.0, -6.0, 5.0, -7.0, 4.0, 4.0],
-        [-9.0, 6.0, 5.0, 2.0, -8.0, 3.0, -7.0, -1.0, 8.0],
-        [-2.0, 1.0, 1.0, 5.0, 0.0, -6.0, -1.0, 5.0, 6.0],
-        [0.0, -4.0, -6.0, -2.0, -5.0, -2.0, 1.0, 8.0, 3.0],
-        [-10.0, 5.0, -7.0, 3.0, 0.0, 3.0, -2.0, 8.0, -1.0],
-    ],
-    dtype=MATRIX_DTYPE,
-)
-
-
-MATRIX_C = np.zeros((9, 9), dtype=MATRIX_DTYPE)
-
-
-def generate_matrix(row, col, min, max):
-    # [min, max)
-    return np.random.randint(min, max, size=(row, col)).astype(MATRIX_DTYPE, copy=False)
-
-
-def get_local_block(matrix, local_i, local_j, row_block_size, col_block_size):
-    return matrix[
-        local_j * col_block_size : (local_j + 1) * col_block_size,
-        local_i * row_block_size : (local_i + 1) * row_block_size,
-    ].copy()
+from GemmUtil.helper_2d import get_local_block
 
 
 def main():
@@ -73,7 +32,7 @@ def main():
 
     row_comm = comm.Split(rank // num_cols, rank)
     col_comm = comm.Split(rank % num_cols, rank)
-    
+
     # these can be used as like coordinates in the processor grid
     row_rank = row_comm.Get_rank()
     col_rank = col_comm.Get_rank()

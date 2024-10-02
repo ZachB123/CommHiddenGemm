@@ -2,7 +2,7 @@ import numpy as np
 from mpi4py import MPI
 import logging
 
-from util import MATRIX_DTYPE
+from GemmUtil.constants import MATRIX_DTYPE
 
 # this file is copied from gemm1d.py but with the computation part removed
 

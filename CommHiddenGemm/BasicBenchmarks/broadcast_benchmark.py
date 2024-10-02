@@ -4,6 +4,8 @@ import csv
 import sys
 import os
 
+from GemmUtil.constants import MATRIX_DTYPE
+
 BENCHMARK_FOLDER = "basic-benchmarks"
 NUM_TRIALS = 100
 
@@ -32,8 +34,8 @@ while send_buffer_size <= 2**max_send:
     for _ in range(NUM_TRIALS):
         data, buffer = [None] * 2
 
-        data = np.ones(send_buffer_size, dtype=np.float64)
-        # buffer = np.empty(send_buffer_size, dtype=np.float64)
+        data = np.ones(send_buffer_size, dtype=MATRIX_DTYPE)
+        # buffer = np.empty(send_buffer_size, dtype=MATRIX_DTYPE)
 
         start_time = MPI.Wtime()
 

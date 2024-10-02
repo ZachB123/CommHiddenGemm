@@ -4,6 +4,8 @@ import csv
 import sys
 import os
 
+from GemmUtil.constants import MATRIX_DTYPE
+
 BENCHMARK_FOLDER = "basic-benchmarks"
 NUM_TRIALS = 100
 
@@ -33,8 +35,8 @@ while send_buffer_size <= 2**max_send:
     for _ in range(NUM_TRIALS):
         data, buffer = [None] * 2
 
-        data = np.ones(send_buffer_size, dtype=np.float64)
-        buffer = np.empty(send_buffer_size, dtype=np.float64)
+        data = np.ones(send_buffer_size, dtype=MATRIX_DTYPE)
+        buffer = np.empty(send_buffer_size, dtype=MATRIX_DTYPE)
 
         start_time = MPI.Wtime()
         if rank == 0:
@@ -76,10 +78,10 @@ while send_buffer_size <= 2**max_send:
 # while send_buffer_size < 100000:
 #     start_time = MPI.Wtime()
 #     if rank == 0:
-#         data = np.empty(send_buffer_size, dtype=np.float64)
+#         data = np.empty(send_buffer_size, dtype=MATRIX_DTYPE)
 #         comm.send(data, 1)
 #     if rank == 1:
-#         # buffer = np.empty(send_buffer_size, dtype=np.float64)
+#         # buffer = np.empty(send_buffer_size, dtype=MATRIX_DTYPE)
 #         data = comm.recv(source = 1)
 #     elapsed_time = MPI.Wtime() - start_time
 #     with open(f"{BENCHMARK_FOLDER}/n{size}-pingpong", mode="a", newline='') as file:

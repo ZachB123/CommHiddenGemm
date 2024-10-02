@@ -2,7 +2,7 @@ import numpy as np
 from mpi4py import MPI
 import logging
 
-from util import MATRIX_DTYPE
+from GemmUtil.constants import MATRIX_DTYPE
 
 
 def allgather_A_col(A_I, B_I, C_I):

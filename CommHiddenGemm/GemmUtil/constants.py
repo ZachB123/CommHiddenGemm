@@ -1,9 +1,14 @@
 import numpy as np
+from mpi4py import MPI
 
-# MATRIX_DTYPE = np.float64
+
 MATRIX_DTYPE = np.float64
+MPI_DTYPE = MPI.FLOAT if MATRIX_DTYPE == np.float32 else MPI.DOUBLE
+
+
 BENCHMARK_FILE = "benchmark.csv"
 
+DEBUG_RANK = 0
 
 """
 These matrices are in the form MATRIX_<LETTER>_<NUMROW>_<NUMCOL>

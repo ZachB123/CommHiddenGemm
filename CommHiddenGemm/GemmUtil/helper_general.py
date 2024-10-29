@@ -2,7 +2,7 @@ import numpy as np
 from mpi4py import MPI
 from datetime import datetime
 
-from GemmUtil.constants import MATRIX_DTYPE
+from GemmUtil.constants import MATRIX_DTYPE, DEBUG_RANK
 
 
 def set_numpy_seed(seed):
@@ -32,6 +32,20 @@ def parallel_print(message, flush=False):
     color_code = get_color_code(rank, size)
 
     print(f"{color_code}[{rank}/{size - 1}]\n{message}\033[0m", flush=flush)
+
+
+def rank_print(message, print_rank=DEBUG_RANK, flush=True):
+    """
+    Print a message from a specific MPI rank.
+
+    Args:
+        message (str): The message to print.
+        print_rank (int, optional): The rank that is allowed to print the message (default is 0).
+        flush (bool, optional): Whether to flush the output immediately (default is False).
+    """
+    rank = MPI.COMM_WORLD.Get_rank()
+    if rank == print_rank:
+        print(message, flush=flush)
 
 
 def generate_matrix(row, col, min, max):

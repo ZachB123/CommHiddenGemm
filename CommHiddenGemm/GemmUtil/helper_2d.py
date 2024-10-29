@@ -167,6 +167,37 @@ def set_subtile(tile, slice, n_slices, direction, block):
         tile[:, width * slice : width * (slice + 1)] = block
 
 
+def get_subtile2(tile, rows, columns, i, j):
+    # fancier way to do subtiles
+    # we split the tile into the rows and columns and can index it like a 2d array
+    # if column is 1 then we just use j as an index
+
+    subtile_rows = tile.shape[0] // rows
+    subtile_columns = tile.shape[1] // columns
+
+    start_row = i * subtile_rows
+    end_row = start_row + subtile_rows
+
+    start_col = j * subtile_columns
+    end_col = start_col + subtile_columns
+
+    return tile[start_row:end_row, start_col:end_col]
+
+
+def set_subtile2(tile, subtile, rows, columns, i, j):
+    subtile_rows = tile.shape[0] // rows
+    subtile_columns = tile.shape[1] // columns
+
+    start_row = i * subtile_rows
+    end_row = start_row + subtile_rows
+
+    start_col = j * subtile_columns
+    end_col = start_col + subtile_columns
+
+    # Set the subtile in the original tile
+    tile[start_row:end_row, start_col:end_col] = subtile
+
+
 def get_local_block(matrix, local_i, local_j, row_block_size, col_block_size):
     """Extract a local block from the matrix.
 

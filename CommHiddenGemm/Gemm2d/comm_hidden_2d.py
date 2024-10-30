@@ -190,7 +190,7 @@ def AG_A_COL_X_AG_B_COL(A, B, C, A_comm, B_comm, m, k, n, prow, pcol):
     # parallel_print(C)
 
 
-def AG_A_ROW_B_ROW(A, B, C, A_comm, B_comm, m, k, n, prow, pcol):
+def AG_A_ROW_X_AG_B_ROW(A, B, C, A_comm, B_comm, m, k, n, prow, pcol):
     """
     Perform a distributed matrix multiplication of A (rows) and B (rows)
     using an allgather approach across rows.
@@ -221,26 +221,46 @@ def AG_A_ROW_B_ROW(A, B, C, A_comm, B_comm, m, k, n, prow, pcol):
     A_next = np.empty((m // size, k // prow))
     B_next = np.empty((k // prow, n // pcol))
 
-    A_subtile_index = 0  # fix
-    C_subtile_index = 0  # fix
-
-    B_curr = B
+    A_subtile_index = rank // pcol
+    C_subtile_index = rank % pcol
 
     for i in range(prow):
 
+        B_curr = B
+
         if i != prow - 1:
-            B_send_request = B_comm.Isend(
-                [B_curr, MPI_DTYPE], (B_rank - 1) % B_comm.Get_size()
-            )
+            B_send_rank = (B_rank - 1) % B_comm.Get_size()
+            B_receive_rank = (B_rank + 1) % B_comm.Get_size()
+            # rank_print(f"(send,rec)=({B_send_rank},{B_receive_rank})\nB:\n{B}")
+            B_send_request = B_comm.Isend(buf=(B, MPI_DTYPE), dest=B_send_rank)
             B_receive_request = B_comm.Irecv(
-                [B_next, MPI_DTYPE], (B_rank + 1) % B_comm.Get_size()
+                buf=(B_next, MPI_DTYPE), source=B_receive_rank
             )
 
         for j in range(pcol):
 
             A_curr = get_subtile2(A, 1, prow, 0, A_subtile_index)
 
+            if j != pcol - 1:
+                A_send_rank = (A_rank - 1) % A_comm.Get_size()
+                A_receive_rank = (A_rank + 1) % A_comm.Get_size()
+                # idk why contiguous needs to be here but it fixes a lot of problems
+                A_send_request = A_comm.Isend(
+                    buf=(np.ascontiguousarray(A_curr), MPI_DTYPE), dest=A_send_rank
+                )
+                A_receive_request = A_comm.Irecv(
+                    buf=(A_next, MPI_DTYPE), source=A_receive_rank
+                )
+
             C_curr = get_subtile2(C, pcol, 1, C_subtile_index, 0)
+
+            debug_string = (
+                f"(A_subtile_index, C_subtile_index)=({A_subtile_index},{C_subtile_index})\n"
+                f"A_curr:\n{A_curr}\n"
+                f"B_curr:\n{B_curr}\n"
+            )
+
+            # rank_print(debug_string)
 
             C_curr += np.matmul(A_curr, B_curr)
 
@@ -248,8 +268,12 @@ def AG_A_ROW_B_ROW(A, B, C, A_comm, B_comm, m, k, n, prow, pcol):
 
             C_subtile_index = (C_subtile_index + 1) % pcol
 
+            if j != pcol - 1:
+                MPI.Request.Waitall([A_send_request, A_receive_request])
+                set_subtile2(A, A_next, 1, prow, 0, A_subtile_index)
+
         if i != prow - 1:
             MPI.Request.Waitall([B_send_request, B_receive_request])
-            B_curr = B_next
+            B = B_next.copy()
 
         A_subtile_index = (A_subtile_index + 1) % prow

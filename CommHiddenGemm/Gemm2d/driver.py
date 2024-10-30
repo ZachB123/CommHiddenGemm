@@ -24,7 +24,11 @@ from GemmUtil.helper_2d import (
     get_subtile2,
 )
 
-from .comm_hidden_2d import AG_A_COL_X_AG_B_COL, AG_A_COL_X_AG_B_ROW
+from .comm_hidden_2d import (
+    AG_A_COL_X_AG_B_COL,
+    AG_A_COL_X_AG_B_ROW,
+    AG_A_ROW_X_AG_B_ROW,
+)
 
 
 def one_processor_test():
@@ -281,14 +285,60 @@ def AG_A_COL_B_COL_driver(m, k, n, prow, pcol):
             parallel_print(f"Equal: {np.all(np.isclose(expected, actual))}")
 
 
+def AG_A_ROW_AG_B_ROW_driver(m, k, n, prow, pcol):
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+
+    assert m % size == 0, "m must be divisible by the number of processors"
+    assert k % prow == 0, "prow must split k"
+    assert n % pcol == 0, "n must be divisible by the number of processors"
+
+    A_comm = comm.Split(rank // pcol, rank)
+    B_comm = comm.Split(rank % pcol, rank)
+
+    A = generate_matrix(m, k, -10, 10)
+    B = generate_matrix(k, n, -10, 10)
+    C = np.zeros((m, n))
+
+    # rank_print(f"A:\n{A}")
+    # rank_print(f"B\n{B}")
+
+    A_I = get_subtile2(A, size, 1, rank, 0).copy()
+    B_I = get_subtile2(B, prow, pcol, rank // pcol, rank % pcol).copy()
+    C_I = get_subtile2(C, prow, pcol, rank // pcol, rank % pcol).copy()
+
+    # rank_print(f"A_I:\n{A_I}\nB_I:\n{B_I}")
+
+    AG_A_ROW_X_AG_B_ROW(A_I, B_I, C_I, A_comm, B_comm, m, k, n, prow, pcol)
+
+    comm.Barrier()
+
+    row_comm = comm.Split(B_comm.Get_rank(), rank)
+
+    B_gather = B_comm.gather(C_I, 0)
+    if B_comm.Get_rank() == 0:
+        B_row_gather = np.vstack(B_gather)
+        result = row_comm.gather(B_row_gather, 0)
+        if rank == 0:
+            actual = np.hstack(result)
+            expected = np.matmul(A, B) + C
+            # parallel_print(f"Expected:\n{expected}")
+            # parallel_print(f"Actual:\n{actual}")
+            parallel_print(f"Equal: {np.all(np.isclose(expected, actual))}")
+
+    # rank_print(f"Expected:\n{np.matmul(A, B) + C}")
+
+
 def main():
     set_numpy_seed(5)
 
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
 
-    AG_A_COL_B_COL_FLAG = True
-    AG_A_COL_B_ROW_FLAG = True
+    AG_A_COL_B_COL_FLAG = False
+    AG_A_COL_B_ROW_FLAG = False
+    AG_A_ROW_B_ROW_FLAG = True
 
     # Different test suites
     if size == 2:
@@ -302,12 +352,16 @@ def main():
     if size == 6:
         if AG_A_COL_B_COL_FLAG:
             AG_A_COL_B_COL_driver(3, 2, 6, 3, 2)
+            AG_A_COL_B_COL_driver(2, 3, 6, 2, 3)
         if AG_A_COL_B_ROW_FLAG:
             AG_A_COL_B_ROW_driver(3, 6, 4, 3, 2)
             AG_A_COL_B_ROW_driver(3 * 500, 6 * 3, 4, 3, 2)
             AG_A_COL_B_ROW_driver(2, 2 * 3, 3, 2, 3)
             AG_A_COL_B_ROW_driver(3, 10, 4, 2, 3)  # padding needed
             AG_A_COL_B_ROW_driver(4, 12, 6, 2, 3)
+        if AG_A_ROW_B_ROW_FLAG:
+            AG_A_ROW_AG_B_ROW_driver(6, 3, 4, 3, 2)
+            AG_A_ROW_AG_B_ROW_driver(6, 4, 3, 2, 3)
 
     if size == 9:
         if AG_A_COL_B_COL_FLAG:
@@ -315,6 +369,10 @@ def main():
             AG_A_COL_B_COL_driver(27, 27, 27, 3, 3)
         if AG_A_COL_B_ROW_FLAG:
             AG_A_COL_B_ROW_driver(9, 9, 9, 3, 3)
+        if AG_A_ROW_B_ROW_FLAG:
+            AG_A_ROW_AG_B_ROW_driver(9, 9, 9, 3, 3)
+            AG_A_ROW_AG_B_ROW_driver(27, 90, 3 * 29, 3, 3)
+            AG_A_ROW_AG_B_ROW_driver(18, 9, 9, 3, 3)
 
     if size == 12:
         if AG_A_COL_B_COL_FLAG:
@@ -325,6 +383,9 @@ def main():
             AG_A_COL_B_ROW_driver(4 * 3, 12 * 7, 3 * 2, 4, 3)
             AG_A_COL_B_ROW_driver(5, 15, 5, 4, 3)  # padding needed
             AG_A_COL_B_ROW_driver(3 * 16, 3 * 4 * 7, 4 * 17, 3, 4)
+        if AG_A_ROW_B_ROW_FLAG:
+            AG_A_ROW_AG_B_ROW_driver(12 * 7, 4 * 11, 3 * 17, 4, 3)
+            AG_A_ROW_AG_B_ROW_driver(12 * 13, 3 * 23, 4 * 29, 3, 4)
 
     if size == 16:
         if AG_A_COL_B_COL_FLAG:

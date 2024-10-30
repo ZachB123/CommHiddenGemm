@@ -8,7 +8,7 @@ MPI_DTYPE = MPI.FLOAT if MATRIX_DTYPE == np.float32 else MPI.DOUBLE
 
 BENCHMARK_FILE = "benchmark.csv"
 
-DEBUG_RANK = 0
+DEBUG_RANK = 2
 
 """
 These matrices are in the form MATRIX_<LETTER>_<NUMROW>_<NUMCOL>

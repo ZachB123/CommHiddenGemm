@@ -17,17 +17,27 @@ from GemmUtil.helper_general import (
 )
 
 from GemmUtil.helper_2d import (
+    block_cyclic,
+    col_block_comm,
+    col_comm,
+    col_major_distribution,
     pad_amount,
+    pure_column_distribution,
+    pure_row_distribution,
     remove_padding,
     pad_matrix_with_zeros,
     get_step_indices,
     get_subtile2,
+    row_block_comm,
+    row_comm,
+    row_major_distribution,
 )
 
 from .comm_hidden_2d import (
     AG_A_COL_X_AG_B_COL,
     AG_A_COL_X_AG_B_ROW,
     AG_A_ROW_X_AG_B_ROW,
+    AG_A_ROW_X_RS_C_COL,
 )
 
 
@@ -181,13 +191,13 @@ def AG_A_COL_B_ROW_driver(m, k, n, prow, pcol):
     # assert m % prow == 0, "processors do not split m well"
     # assert n % pcol == 0, "processors do not split n well"
 
-    A_comm = comm.Split(rank // pcol, rank)
-    B_comm = comm.Split(rank % pcol, rank)
+    A_comm = col_block_comm(comm, pcol, rank)  # comm.Split(rank // pcol, rank)
+    B_comm = col_comm(comm, pcol, rank)  # comm.Split(rank % pcol, rank)
 
     # the local row and column processor indices
     # these are flipped cuz its like a communicator for an entire row or column
-    J = A_comm.Get_rank()
-    I = B_comm.Get_rank()
+    # J = A_comm.Get_rank()
+    # I = B_comm.Get_rank()
 
     # even though this is done on each processor we get the same matrix cuz the seed is the same
     A = generate_matrix(m, k, -10, 10)
@@ -210,19 +220,22 @@ def AG_A_COL_B_ROW_driver(m, k, n, prow, pcol):
 
     A_width = k // (pcol * prow)
     # parallel_print(A_width)
-    A_I = A[
-        I * (m // prow) : (I + 1) * (m // prow),
-        get_step_indices(J * A_width, A.shape[1], pcol, A_width),
-    ].copy()
-    B_I = B[
-        I * (k // prow) : (I + 1) * (k // prow), J * (n // pcol) : (J + 1) * (n // pcol)
-    ].copy()
-    C_I = C[
-        I * (m // prow) : (I + 1) * (m // prow), J * (n // pcol) : (J + 1) * (n // pcol)
-    ].copy()
+    # A_I = A[
+    #     I * (m // prow) : (I + 1) * (m // prow),
+    #     get_step_indices(J * A_width, A.shape[1], pcol, A_width),
+    # ].copy()
+    A_I = block_cyclic(A, prow, pcol, B_comm.Get_rank(), A_comm.Get_rank())
+    # B_I = B[
+    #     I * (k // prow) : (I + 1) * (k // prow), J * (n // pcol) : (J + 1) * (n // pcol)
+    # ].copy()
+    # C_I = C[
+    #     I * (m // prow) : (I + 1) * (m // prow), J * (n // pcol) : (J + 1) * (n // pcol)
+    # ].copy()
+    B_I = row_major_distribution(B, prow, pcol, rank)
+    C_I = row_major_distribution(C, prow, pcol, rank)
 
     # parallel_print(f"AIJ:\n{AIJ}\nBIJ\n{BIJ}")
-    AG_A_COL_X_AG_B_ROW(A_I, B_I, C_I, A_comm, B_comm, m, k, n, prow, pcol, I, J)
+    AG_A_COL_X_AG_B_ROW(A_I, B_I, C_I, A_comm, B_comm, m, k, n, prow, pcol)
 
     comm.Barrier()
 
@@ -240,6 +253,10 @@ def AG_A_COL_B_ROW_driver(m, k, n, prow, pcol):
     #     os.makedirs("./Gemm2d/TempBenchmarks")
 
 
+def AG_A_COL_B_ROW_driver_2(m, k, n, prow, pcol):
+    pass
+
+
 def AG_A_COL_B_COL_driver(m, k, n, prow, pcol):
 
     comm = MPI.COMM_WORLD
@@ -250,9 +267,11 @@ def AG_A_COL_B_COL_driver(m, k, n, prow, pcol):
     assert k % pcol == 0, "pcol must split k"
     assert m % prow == 0, "prow must split m"
 
-    A_comm = comm.Split(rank % prow, rank)
+    # A_comm = comm.Split(rank % prow, rank)
     # magic formula idk why it works
-    B_comm = comm.Split(rank // (size // pcol), rank)
+    # B_comm = comm.Split(rank // (size // pcol), rank)
+    A_comm = row_comm(comm, prow, rank)
+    B_comm = row_block_comm(comm, prow, rank)
 
     # parallel_print(f"{rank} - {A_comm.Get_rank()}")
 
@@ -263,9 +282,13 @@ def AG_A_COL_B_COL_driver(m, k, n, prow, pcol):
     # rank_print(f"A:\n{A}")
     # rank_print(f"B\n{B}")
 
-    A_I = get_subtile2(A, prow, pcol, rank % prow, rank // prow).copy()
-    B_I = get_subtile2(B, 1, size, 0, rank).copy()
-    C_I = get_subtile2(C, prow, pcol, rank % prow, rank // prow).copy()
+    # A_I = get_subtile2(A, prow, pcol, rank % prow, rank // prow).copy()
+    # B_I = get_subtile2(B, 1, size, 0, rank).copy()
+    # C_I = get_subtile2(C, prow, pcol, rank % prow, rank // prow).copy()
+
+    A_I = col_major_distribution(A, prow, pcol, rank)
+    B_I = pure_column_distribution(B, size, rank)
+    C_I = col_major_distribution(C, prow, pcol, rank)
 
     AG_A_COL_X_AG_B_COL(A_I, B_I, C_I, A_comm, B_comm, m, k, n, prow, pcol)
 
@@ -286,16 +309,19 @@ def AG_A_COL_B_COL_driver(m, k, n, prow, pcol):
 
 
 def AG_A_ROW_AG_B_ROW_driver(m, k, n, prow, pcol):
+    # 7
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
 
     assert m % size == 0, "m must be divisible by the number of processors"
     assert k % prow == 0, "prow must split k"
-    assert n % pcol == 0, "n must be divisible by the number of processors"
+    assert n % pcol == 0, "pcol must split n"
 
-    A_comm = comm.Split(rank // pcol, rank)
-    B_comm = comm.Split(rank % pcol, rank)
+    # A_comm = comm.Split(rank // pcol, rank)
+    # B_comm = comm.Split(rank % pcol, rank)
+    A_comm = col_block_comm(comm, pcol, rank)
+    B_comm = col_comm(comm, pcol, rank)
 
     A = generate_matrix(m, k, -10, 10)
     B = generate_matrix(k, n, -10, 10)
@@ -304,9 +330,12 @@ def AG_A_ROW_AG_B_ROW_driver(m, k, n, prow, pcol):
     # rank_print(f"A:\n{A}")
     # rank_print(f"B\n{B}")
 
-    A_I = get_subtile2(A, size, 1, rank, 0).copy()
-    B_I = get_subtile2(B, prow, pcol, rank // pcol, rank % pcol).copy()
-    C_I = get_subtile2(C, prow, pcol, rank // pcol, rank % pcol).copy()
+    # A_I = get_subtile2(A, size, 1, rank, 0).copy()
+    # B_I = get_subtile2(B, prow, pcol, rank // pcol, rank % pcol).copy()
+    # C_I = get_subtile2(C, prow, pcol, rank // pcol, rank % pcol).copy()
+    A_I = pure_row_distribution(A, size, rank)
+    B_I = row_major_distribution(B, prow, pcol, rank)
+    C_I = row_major_distribution(C, prow, pcol, rank)
 
     # rank_print(f"A_I:\n{A_I}\nB_I:\n{B_I}")
 
@@ -330,15 +359,61 @@ def AG_A_ROW_AG_B_ROW_driver(m, k, n, prow, pcol):
     # rank_print(f"Expected:\n{np.matmul(A, B) + C}")
 
 
+def AG_A_ROW_RS_C_COL(m, k, n, prow, pcol):
+    # 8
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+
+    assert m % prow == 0, "prow must split m"
+    assert k % pcol == 0, "pcol must split k"
+    assert n % size == 0, "n must be divisible by the number of processors"
+
+    A_comm = col_comm(comm, pcol, rank)  # comm.Split(rank % pcol, rank)
+    C_comm = col_block_comm(comm, pcol, rank)  # comm.Split(rank // pcol, rank)
+
+    A = generate_matrix(m, k, -10, 10)
+    B = generate_matrix(k, n, -10, 10)
+    C = np.zeros((m, n))
+
+    # rank_print(f"A:\n{A}")
+    # rank_print(f"B\n{B}")
+
+    # A_I = get_subtile2(A, prow, pcol, rank // pcol, rank % pcol).copy()
+    # B_I = get_subtile2(B, pcol, prow, rank % pcol, rank // pcol).copy()
+    # C_I = get_subtile2(C, 1, size, 0, rank).copy()
+    A_I = row_major_distribution(A, prow, pcol, rank)
+    B_I = col_major_distribution(
+        B, pcol, prow, rank
+    )  # THE PROW AND PCOL ARE FLIPPED THIS IS IMPORTANT
+    C_I = pure_column_distribution(C, size, rank)
+
+    # rank_print(f"A_I:\n{A_I}\nB_I:\n{B_I}")
+
+    AG_A_ROW_X_RS_C_COL(A_I, B_I, C_I, A_comm, C_comm, m, k, n, prow, pcol)
+
+    comm.Barrier()
+    gather = comm.gather(C_I, 0)
+    if rank == 0:
+        actual = np.hstack(gather)
+        expected = np.matmul(A, B) + C
+        # parallel_print(f"Expected:\n{expected}")
+        # parallel_print(f"Actual:\n{actual}")
+        parallel_print(f"Equal: {np.all(np.isclose(expected, actual))}")
+
+    # rank_print(f"Expected:\n{np.matmul(A, B) + C}")
+
+
 def main():
     set_numpy_seed(5)
 
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
 
-    AG_A_COL_B_COL_FLAG = False
-    AG_A_COL_B_ROW_FLAG = False
+    AG_A_COL_B_COL_FLAG = True
+    AG_A_COL_B_ROW_FLAG = True
     AG_A_ROW_B_ROW_FLAG = True
+    AG_A_ROW_C_COL_FLAG = True
 
     # Different test suites
     if size == 2:
@@ -348,6 +423,14 @@ def main():
         if AG_A_COL_B_ROW_FLAG:
             AG_A_COL_B_ROW_driver(3, 6, 4, 1, 2)
             AG_A_COL_B_ROW_driver(120, 6, 4, 2, 1)
+        if AG_A_ROW_B_ROW_FLAG:
+            AG_A_ROW_AG_B_ROW_driver(8, 8, 8, 1, 2)
+            AG_A_ROW_AG_B_ROW_driver(8, 8, 8, 2, 1)
+        if AG_A_ROW_C_COL_FLAG:
+            AG_A_ROW_RS_C_COL(4, 4, 4, 1, 2)
+            AG_A_ROW_RS_C_COL(4, 4, 4, 2, 1)
+            AG_A_ROW_RS_C_COL(100, 100, 100, 1, 2)
+            AG_A_ROW_RS_C_COL(100, 100, 100, 2, 1)
 
     if size == 6:
         if AG_A_COL_B_COL_FLAG:
@@ -362,6 +445,9 @@ def main():
         if AG_A_ROW_B_ROW_FLAG:
             AG_A_ROW_AG_B_ROW_driver(6, 3, 4, 3, 2)
             AG_A_ROW_AG_B_ROW_driver(6, 4, 3, 2, 3)
+        if AG_A_ROW_C_COL_FLAG:
+            AG_A_ROW_RS_C_COL(3, 2, 6, 3, 2)
+            AG_A_ROW_RS_C_COL(2, 3, 6, 2, 3)
 
     if size == 9:
         if AG_A_COL_B_COL_FLAG:
@@ -373,6 +459,9 @@ def main():
             AG_A_ROW_AG_B_ROW_driver(9, 9, 9, 3, 3)
             AG_A_ROW_AG_B_ROW_driver(27, 90, 3 * 29, 3, 3)
             AG_A_ROW_AG_B_ROW_driver(18, 9, 9, 3, 3)
+        if AG_A_ROW_C_COL_FLAG:
+            AG_A_ROW_RS_C_COL(3, 3, 9, 3, 3)
+            AG_A_ROW_RS_C_COL(3 * 11, 3 * 23, 9 * 17, 3, 3)
 
     if size == 12:
         if AG_A_COL_B_COL_FLAG:
@@ -386,12 +475,20 @@ def main():
         if AG_A_ROW_B_ROW_FLAG:
             AG_A_ROW_AG_B_ROW_driver(12 * 7, 4 * 11, 3 * 17, 4, 3)
             AG_A_ROW_AG_B_ROW_driver(12 * 13, 3 * 23, 4 * 29, 3, 4)
+        if AG_A_ROW_C_COL_FLAG:
+            AG_A_ROW_RS_C_COL(3, 4, 12, 3, 4)
+            AG_A_ROW_RS_C_COL(4, 3, 12, 4, 3)
+            AG_A_ROW_RS_C_COL(3 * 29, 4 * 11, 12 * 17, 3, 4)
+            AG_A_ROW_RS_C_COL(4 * 7, 3 * 29, 12 * 17, 4, 3)
 
     if size == 16:
         if AG_A_COL_B_COL_FLAG:
             AG_A_COL_B_COL_driver(1000, 1000, 1600, 4, 4)
         if AG_A_COL_B_ROW_FLAG:
             AG_A_COL_B_ROW_driver(1600, 1600, 1600, 4, 4)
+        if AG_A_ROW_C_COL_FLAG:
+            AG_A_ROW_RS_C_COL(4, 4, 16, 4, 4)
+            AG_A_ROW_RS_C_COL(4 * 31, 4 * 29, 16 * 11, 4, 4)
 
     if size == 25:
         if AG_A_COL_B_COL_FLAG:
@@ -399,6 +496,9 @@ def main():
         if AG_A_COL_B_ROW_FLAG:
             AG_A_COL_B_ROW_driver(5, 5 * 5, 5, 5, 5)
             AG_A_COL_B_ROW_driver(14, 37, 17, 5, 5)
+        if AG_A_ROW_C_COL_FLAG:
+            AG_A_ROW_RS_C_COL(5, 5, 25, 5, 5)
+            AG_A_ROW_RS_C_COL(5 * 37, 5 * 23, 25 * 7, 5, 5)
 
 
 if __name__ == "__main__":

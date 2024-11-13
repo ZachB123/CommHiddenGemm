@@ -241,3 +241,82 @@ def get_step_indices(start, k, partitions, width):
     for curr in range(start, k, partitions * width):
         selected_indices.extend(list(range(curr, curr + width)))
     return selected_indices
+
+
+def block_cyclic(matrix, prow, pcol, row_index, start_col_index):
+    p = prow * pcol
+    subtiles = []
+    curr_index = start_col_index
+    while curr_index < p:
+        subtiles.append(get_subtile2(matrix, prow, p, row_index, curr_index))
+        curr_index += pcol
+
+    return np.hstack(subtiles)
+
+
+def col_comm(comm, pcol, rank):
+    # a single column so it communicates across the rows
+    return comm.Split(rank % pcol, rank)
+
+
+def col_block_comm(comm, pcol, rank):
+    # split the matrix into a bunch of row slices then take a contiguous collection of these rows to communicate across
+    return comm.Split(rank // pcol, rank)
+
+
+def row_comm(comm, prow, rank):
+    # single row so it communicates across the columns
+    return comm.Split(rank % prow, rank)
+
+
+def row_block_comm(comm, prow, rank):
+    # divide the matrix up into a bunch of columns keep row intact then take a contiguous collection of these columns to be apart of the communicator
+    return comm.Split(rank // prow, rank)
+
+
+def col_major_distribution(matrix, prow, pcol, rank):
+    # label going down a a column first
+    # returns a copy
+    return get_subtile2(matrix, prow, pcol, rank % prow, rank // prow).copy()
+
+
+def pure_column_distribution(matrix, size, rank):
+    # no grid just create a bunch of tiles
+    return get_subtile2(matrix, 1, size, 0, rank).copy()
+
+
+def row_major_distribution(matrix, prow, pcol, rank):
+    # labels going across a row first
+    return get_subtile2(matrix, prow, pcol, rank // pcol, rank % pcol).copy()
+
+
+def pure_row_distribution(matrix, size, rank):
+    return get_subtile2(matrix, size, 1, rank, 0).copy()
+
+
+class DoubleBuffer:
+    def __init__(self, dimension, initial_value=None):
+        if initial_value is not None:
+            self.first_buffer = initial_value
+            self.second_buffer = np.empty(initial_value.shape)
+        else:
+            self.first_buffer = np.empty(shape=dimension)
+            self.second_buffer = np.empty(shape=dimension)
+        self.current_buffer = self.first_buffer
+
+    def get_receive_buffer(self):
+        # this is wait we can use in the mpi receive request
+        # we receive into not the current buffer then swap it
+        if self.current_buffer is self.first_buffer:
+            return self.second_buffer
+        else:
+            return self.first_buffer
+
+    def get_current_tile(self):
+        return self.current_buffer
+
+    def swap(self):
+        if self.current_buffer is self.first_buffer:
+            self.current_buffer = self.second_buffer
+        else:
+            self.current_buffer = self.first_buffer
